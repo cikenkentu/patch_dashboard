@@ -1,0 +1,179 @@
+<script setup>
+// App hanya menyediakan shell bersama; isi halaman tetap menjadi tanggung jawab Vue Router.
+import { RouterLink, RouterView } from 'vue-router'
+</script>
+
+<template>
+  <div class="app-shell">
+    <!-- Link aksesibilitas untuk pengguna keyboard. -->
+    <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
+
+    <!-- Brand adalah satu-satunya navigasi global dan menjadi aksi kembali ke halaman utama. -->
+    <header class="app-header">
+      <div class="app-header__inner page-container">
+        <RouterLink class="brand" to="/">Patching</RouterLink>
+      </div>
+    </header>
+
+    <!-- id adalah target skip-link; ubah href dan id bersamaan bila struktur shell berubah. -->
+    <main id="main-content" class="page-container main-content">
+      <RouterView />
+    </main>
+  </div>
+</template>
+
+<style>
+/*
+ * Style sengaja global agar token/reset dapat dipakai view dan override PrimeVue.
+ * Variabel di :root adalah sumber nilai bersama; ubah di sini untuk tema seluruh aplikasi.
+ */
+:root {
+  color: #344054;
+  background: #f5f6f7;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --header-height: 56px;
+  --surface: #ffffff;
+  --border: #d0d5dd;
+  --border-light: #e4e7ec;
+  --text: #17202a;
+  --muted: #667085;
+  --link: #175cd3;
+}
+
+* {
+  /* Ukuran komponen tetap dapat diprediksi ketika padding atau border ditambahkan. */
+  box-sizing: border-box;
+}
+
+/* 320px adalah viewport minimum; konten yang lebih lebar harus wrap atau scroll secara lokal. */
+html,
+body,
+#app {
+  min-width: 320px;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f5f6f7;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  color: var(--text);
+  font-size: clamp(1.75rem, 3vw, 2.1rem);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+
+/* Skip link tersembunyi sampai menerima fokus keyboard. */
+.skip-link {
+  position: fixed;
+  z-index: 1000;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  color: #ffffff;
+  background: var(--link);
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.app-shell {
+  /* Fallback vh mendukung browser lama; dvh mengikuti tinggi viewport mobile yang dinamis. */
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-container {
+  /* Satu aturan lebar menjaga header, dashboard, dan report sejajar. */
+  width: calc(100% - 48px);
+  margin: 0 auto;
+}
+
+.app-header {
+  /* Satu token tinggi dipakai header dan kalkulasi viewport; jangan hard-code nilai kedua. */
+  height: var(--header-height);
+  flex: 0 0 var(--header-height);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.app-header__inner {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  align-items: center;
+}
+
+.brand {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.main-content {
+  /* Flex memberi report tinggi tersisa untuk area tabel tanpa card berukuran tetap. */
+  display: flex;
+  /* vh adalah fallback; dvh mengikuti area browser mobile yang benar-benar terlihat. */
+  min-height: calc(100vh - var(--header-height));
+  min-height: calc(100dvh - var(--header-height));
+  flex: 1;
+  flex-direction: column;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+@media (max-width: 760px) {
+  /* Jarak halaman diperkecil pada tablet dan ponsel. */
+  .page-container {
+    width: calc(100% - 28px);
+  }
+
+  .main-content {
+    padding-top: 1.5rem;
+    padding-bottom: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Hormati preferensi pengguna yang mengurangi animasi. */
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
