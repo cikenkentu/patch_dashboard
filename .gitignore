@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .qa/
+.codex/
+openspec/
 .env
 .env.*
 !.env.example

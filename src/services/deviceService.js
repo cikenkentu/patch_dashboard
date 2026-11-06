@@ -1,26 +1,85 @@
-// Batas integrasi frontend: ganti implementasi di file ini saat backend BigFix sudah tersedia.
-// URL endpoint lengkap diisi lewat .env.local, contoh: VITE_DEVICE_API_URL=/api/devices.
+// Frontend selalu berbicara ke backend internal; default same-origin bekerja saat dev dan deployment.
+// VITE_DEVICE_API_URL hanya diperlukan bila API sengaja ditempatkan pada URL berbeda.
 // Variabel VITE_* masuk ke bundle browser; jangan pernah isi credential atau token BigFix di sini.
-const DEVICE_API_URL = import.meta.env.VITE_DEVICE_API_URL?.trim()
+const DEVICE_API_URL = import.meta.env.VITE_DEVICE_API_URL?.trim() || '/api/devices'
 
-// Metadata presentasi bersama menjaga label dan warna konsisten di dashboard, filter, serta tabel.
-// Backend cukup mengirim patchStatus "patched" atau "unpatched"; label/warna tetap milik frontend.
-export const PATCH_STATUS = Object.freeze({
-  patched: {
-    value: 'patched',
-    label: 'Sudah di-patch',
-    color: '#1f9d68',
-  },
-  unpatched: {
-    value: 'unpatched',
-    label: 'Belum di-patch',
-    color: '#f59e0b',
-  },
-})
+const DEVICE_FIELDS = Object.freeze([
+  'id',
+  'hostname',
+  'ipAddress',
+  'osVersion',
+  'patchStatus',
+  'lastPatch',
+  'lastReportTime',
+])
+
+// Nilai canonical ini adalah bagian kontrak JSON, bukan metadata tampilan.
+const DEVICE_PATCH_STATUSES = Object.freeze(['patched', 'unpatched'])
+
+// Validasi boundary diletakkan di service agar komponen Vue selalu menerima bentuk data yang sama.
+function validateDevice(record, index) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    throw new TypeError(`Perangkat pada indeks ${index} harus berupa object.`)
+  }
+
+  const missingField = DEVICE_FIELDS.find((field) => !Object.hasOwn(record, field))
+  if (missingField) {
+    throw new TypeError(`Perangkat pada indeks ${index} tidak memiliki field ${missingField}.`)
+  }
+
+  const requiredStrings = DEVICE_FIELDS.filter((field) => field !== 'lastPatch')
+  for (const field of requiredStrings) {
+    if (typeof record[field] !== 'string' || !record[field].trim()) {
+      throw new TypeError(`Field ${field} pada perangkat indeks ${index} wajib berupa string.`)
+    }
+  }
+
+  if (
+    record.lastPatch !== null
+    && (typeof record.lastPatch !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(record.lastPatch.trim()))
+  ) {
+    throw new TypeError(`Field lastPatch pada perangkat indeks ${index} harus YYYY-MM atau null.`)
+  }
+
+  const device = {
+    id: record.id.trim(),
+    hostname: record.hostname.trim(),
+    ipAddress: record.ipAddress.trim(),
+    osVersion: record.osVersion.trim(),
+    patchStatus: record.patchStatus.trim(),
+    lastPatch: record.lastPatch?.trim() ?? null,
+    lastReportTime: record.lastReportTime.trim(),
+  }
+
+  if (!DEVICE_PATCH_STATUSES.includes(device.patchStatus)) {
+    throw new TypeError(`Patch status tidak dikenal: ${device.patchStatus}.`)
+  }
+  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(device.lastReportTime)
+  if (!hasTimezone || !Number.isFinite(Date.parse(device.lastReportTime))) {
+    throw new TypeError('Last Report Time harus berupa timestamp ISO 8601 dengan zona waktu.')
+  }
+
+  return device
+}
+
+function validateDevices(payload) {
+  if (!Array.isArray(payload)) {
+    throw new TypeError('Root respons perangkat harus berupa array JSON.')
+  }
+
+  const devices = payload.map(validateDevice)
+
+  // ID duplikat merusak data-key tabel dan biasanya menandakan mapping backend bermasalah.
+  if (new Set(devices.map((device) => device.id)).size !== devices.length) {
+    throw new TypeError('Setiap perangkat harus memiliki ID yang unik.')
+  }
+
+  return devices
+}
 
 /**
  * Kontrak satu perangkat yang harus dikirim backend.
- * Timestamp memakai ISO 8601 agar zona waktu sumber tidak hilang saat diformat di browser.
+ * Bulan patch memakai YYYY-MM; waktu melapor memakai ISO 8601 agar zona waktu sumber tidak hilang.
  *
  * @typedef {Object} Device
  * @property {string} id ID unik dan stabil untuk data-key tabel.
@@ -28,63 +87,18 @@ export const PATCH_STATUS = Object.freeze({
  * @property {string} ipAddress Alamat IP perangkat.
  * @property {string} osVersion Nama dan versi OS.
  * @property {'patched'|'unpatched'} patchStatus Status patch yang sudah dinormalisasi backend.
+ * @property {string|null} lastPatch Bulan patch terakhir dalam format YYYY-MM, atau null bila belum diketahui.
  * @property {string} lastReportTime Timestamp ISO 8601 dengan Z/offset saat terakhir melapor.
  */
 
-// Generator menjaga mock ribuan perangkat tetap ringkas dan mudah diubah dari satu tempat.
-const SAMPLE_DEVICE_TOTAL = 5_000
-const SAMPLE_PATCHED_PER_TEN = 7
-const SAMPLE_REPORT_BASE_TIME = Date.parse('2026-10-29T05:00:00Z')
-const SAMPLE_OPERATING_SYSTEMS = [
-  'Windows 11 Enterprise 23H2',
-  'Windows 11 Enterprise 24H2',
-  'Windows 10 Enterprise 22H2',
-  'Windows Server 2022 Datacenter',
-  'Windows Server 2019 Standard',
-]
-
-/**
- * Membuat 5.000 perangkat development: 3.500 patched dan 1.500 unpatched.
- * Hostname memakai awalan DEMO agar tidak tertukar dengan perangkat produksi.
- * Setiap pemanggilan menghasilkan array baru tanpa menulis ribuan object secara manual.
- *
- * @returns {Device[]}
- */
-function getDevelopmentSampleDevices() {
-  return Array.from({ length: SAMPLE_DEVICE_TOTAL }, (_, index) => {
-    const sequence = index + 1
-    const sequenceLabel = String(sequence).padStart(5, '0')
-
-    // Satu subnet menampung 254 host; pembagian ini membuat seluruh IP privat tetap unik.
-    const thirdOctet = Math.floor(index / 254) + 1
-    const fourthOctet = (index % 254) + 1
-
-    return {
-      id: `demo-${sequenceLabel}`,
-      hostname: `DEMO-DEVICE-${sequenceLabel}`,
-      ipAddress: `10.20.${thirdOctet}.${fourthOctet}`,
-      osVersion: SAMPLE_OPERATING_SYSTEMS[index % SAMPLE_OPERATING_SYSTEMS.length],
-      // Pola 7:3 menghasilkan komposisi tepat 70% patched untuk setiap sepuluh perangkat.
-      patchStatus: index % 10 < SAMPLE_PATCHED_PER_TEN ? 'patched' : 'unpatched',
-      // Waktu digeser per menit agar sorting report mudah diuji dengan data bervariasi.
-      lastReportTime: new Date(SAMPLE_REPORT_BASE_TIME - (index % 4_320) * 60_000).toISOString(),
-    }
-  })
-}
-
 /**
  * Mengambil dataset perangkat melalui satu pintu supaya view tidak mengetahui detail backend.
- * Tanpa endpoint, mode development memakai sample; build production tetap mengembalikan array kosong.
+ * JSON `[]` adalah respons valid ketika sumber belum memiliki data.
  *
  * @returns {Promise<Device[]>}
  * @throws {Error|TypeError} Jika jaringan, HTTP, JSON, atau bentuk respons tidak valid.
  */
 export async function fetchDevices() {
-  if (!DEVICE_API_URL) {
-    // Vite mengganti DEV secara statis; branch sample dibuang dari bundle production.
-    return import.meta.env.DEV ? getDevelopmentSampleDevices() : []
-  }
-
   // Browser hanya memanggil backend internal; autentikasi, retry, audit, dan BigFix berada di backend.
   // Jangan menambahkan credential atau token berumur panjang ke header request frontend.
   let response
@@ -102,19 +116,22 @@ export async function fetchDevices() {
     throw new Error(`Gagal mengambil data perangkat (${response.status}).`)
   }
 
-  let devices
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new TypeError('API perangkat harus mengirim Content-Type application/json.')
+  }
+
+  let payload
   try {
-    devices = await response.json()
+    payload = await response.json()
   } catch (error) {
-    throw new Error('Respons API perangkat bukan JSON yang valid.', { cause: error })
+    throw new Error('Respons JSON API perangkat tidak dapat dibaca.', { cause: error })
   }
 
-  // Validasi boundary minimal: cegah view menerima object/error payload seolah-olah daftar perangkat.
-  // Validasi schema per-field dapat ditambahkan di sini ketika kontrak backend sudah final.
-  if (!Array.isArray(devices)) {
-    throw new TypeError('Respons API perangkat harus berupa array.')
+  try {
+    // JSON hanya melewati boundary ini setelah setiap record memenuhi kontrak canonical.
+    return validateDevices(payload)
+  } catch (error) {
+    throw new Error('Respons API perangkat bukan JSON Device yang valid.', { cause: error })
   }
-
-  // Dataset tetap mentah; seluruh ringkasan dan filter diturunkan di view dari sumber yang sama.
-  return devices
 }

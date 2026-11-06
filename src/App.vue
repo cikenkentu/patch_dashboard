@@ -47,11 +47,11 @@ import { RouterLink, RouterView } from 'vue-router'
   box-sizing: border-box;
 }
 
-/* 320px adalah viewport minimum; konten yang lebih lebar harus wrap atau scroll secara lokal. */
+/* Shell boleh menyusut mengikuti layout viewport; komponen menangani wrap/scroll secara lokal. */
 html,
 body,
 #app {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100%;
 }
 
