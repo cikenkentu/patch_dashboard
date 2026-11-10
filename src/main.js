@@ -6,7 +6,8 @@ import Aura from '@primeuix/themes/aura'
 
 import App from './App.vue'
 
-// Placeholder report tetap terpisah agar setiap card siap menerima schema domainnya sendiri.
+// Placeholder menjaga invariant satu card : satu route report tanpa mencampur schema antardomain.
+// Saat slot menjadi domain nyata, ganti satu entry dan file pasangannya; jangan menambah router kedua.
 const reportSlotRoutes = [
   { path: '/reports/slot-2', name: 'report-slot-2', component: () => import('./views/report/report_slot2.vue') },
   { path: '/reports/slot-3', name: 'report-slot-3', component: () => import('./views/report/report_slot3.vue') },
@@ -15,8 +16,8 @@ const reportSlotRoutes = [
   { path: '/reports/slot-6', name: 'report-slot-6', component: () => import('./views/report/report_slot6.vue') },
 ]
 
-// Route tetap di entry point agar daftar halaman dapat ditemukan tanpa menelusuri banyak file.
-// Nama route adalah kontrak internal yang dipakai view untuk navigasi, jadi ubah dengan hati-hati.
+// Entry point memiliki daftar route agar topology aplikasi dapat diaudit dari satu file.
+// `name` adalah kontrak navigasi internal; `path` adalah kontrak bookmark/reverse proxy.
 const router = createRouter({
   // Clean URL membutuhkan fallback ke index.html pada web server ketika /reports dibuka langsung.
   history: createWebHistory(),
@@ -36,13 +37,13 @@ const router = createRouter({
     },
     ...reportSlotRoutes,
   ],
-  // Setiap perpindahan halaman dimulai dari atas; query filter tidak menyimpan posisi scroll lama.
+  // Navigasi domain baru dimulai dari atas; query filter tidak membawa posisi halaman sebelumnya.
   scrollBehavior: () => ({ top: 0 }),
 })
 
 const app = createApp(App)
 
-// Tema PrimeVue dipusatkan di sini supaya seluruh komponen memakai konfigurasi yang sama.
+// Konfigurasi library UI adalah concern bootstrap global; view domain tidak boleh memasang tema sendiri.
 app.use(PrimeVue, {
   theme: {
     preset: Aura,
@@ -54,6 +55,6 @@ app.use(PrimeVue, {
   },
 })
 
-// Router harus aktif sebelum mount agar RouterLink/RouterView tersedia sejak render pertama.
+// Urutan bootstrap adalah invariant: seluruh plugin harus aktif sebelum root component di-mount.
 app.use(router)
 app.mount('#app')

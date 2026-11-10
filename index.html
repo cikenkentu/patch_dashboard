@@ -10,6 +10,10 @@
     <title>Patching Dashboard</title>
   </head>
   <body>
+    <!--
+      Entry HTML sengaja tidak memuat UI domain. Vue memiliki seluruh shell aplikasi di bawah
+      mount point ini sehingga routing, aksesibilitas, dan state tidak terpecah antara HTML/Vue.
+    -->
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

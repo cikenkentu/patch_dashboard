@@ -7,11 +7,14 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
-// Template report hanya menangani tampilan tabel; arti field dan sumber data ditentukan file domain.
+// Layer kedua report: renderer reusable untuk toolbar, tabel, state, pagination, dan export.
+// Arti field, sumber data, serta aturan filter tetap ditentukan oleh file domain pemanggil.
 const props = defineProps({
   ariaLabel: { type: String, required: true },
   items: { type: Array, required: true },
+  // sourceCount membedakan sumber kosong dari hasil kosong setelah filter diterapkan domain.
   sourceCount: { type: Number, required: true },
+  // Metadata kolom adalah extension point; renderer tidak mengimpor schema domain mana pun.
   columns: { type: Array, required: true },
   statusOptions: { type: Array, default: () => [] },
   emptyTitle: { type: String, required: true },
@@ -32,9 +35,10 @@ const props = defineProps({
   showPagination: { type: Boolean, default: false },
 })
 
-// Filter tetap dimiliki file domain, tetapi kontrol inputnya direuse bersama template tabel.
+// Nilai filter dimiliki domain dan ditulis balik melalui v-model; tabel hanya menyediakan kontrolnya.
 const searchTerm = defineModel('searchTerm', { type: String, required: true })
 const statusFilter = defineModel('statusFilter', { default: null })
+// Offset dan ukuran halaman adalah state presentasi lokal, bukan bagian kontrak data domain.
 const first = ref(0)
 const pageSize = ref(20)
 const dataTable = ref(null)
@@ -44,6 +48,7 @@ const formatNumber = (value) => numberFormatter.format(value)
 const hasSearch = computed(() => props.showSearch && Boolean(searchTerm.value.trim()))
 const hasResults = computed(() => props.items.length > 0)
 const hasToolbar = computed(() => props.showSearch || props.showStatusFilter || props.showExport)
+// `items` sudah merupakan hasil filter domain; export mencakup seluruh hasil itu, bukan halaman aktif.
 const canExport = computed(() => props.showExport
   && !props.isLoading && !props.errorMessage && hasResults.value)
 const pageReportLabel = computed(() => {
@@ -73,7 +78,10 @@ function getColumnCellClass(column, row) {
     : column.cellClass
 }
 
-/** Format export mengikuti teks yang terlihat sekaligus mencegah formula injection di spreadsheet. */
+/**
+ * Export memakai formatter kolom yang sama dengan layar agar representasi tetap konsisten.
+ * Prefix apostrof adalah boundary keamanan terhadap formula injection saat CSV dibuka spreadsheet.
+ */
 function formatCsvCell({ data, field }) {
   const column = props.columns.find((item) => item.field === field)
   const value = column?.formatter ? column.formatter(data) : data
@@ -94,6 +102,7 @@ watch([searchTerm, statusFilter], () => {
 </script>
 
 <template>
+  <!-- ariaLabel menamai satu region report lengkap, termasuk toolbar dan tabelnya. -->
   <section class="report-content" :aria-label="ariaLabel">
       <div v-if="hasToolbar" class="report-toolbar">
         <label v-if="showSearch" class="filter-field filter-field--search">
@@ -138,12 +147,13 @@ watch([searchTerm, statusFilter], () => {
         />
       </div>
 
+      <!-- Error memakai alert karena membutuhkan pengumuman segera; state jumlah memakai polite live-region. -->
       <div v-if="errorMessage" class="error-state" role="alert">
         {{ errorMessage }}
       </div>
 
       <div v-else class="data-table-wrapper">
-        <!-- PrimeVue menangani sorting/pagination; file domain hanya mengirim data dan definisi kolom. -->
+        <!-- PrimeVue menangani sorting/pagination; domain hanya mengirim snapshot dan definisi kolom. -->
         <DataTable
           ref="dataTable"
           v-model:first="first"
@@ -205,6 +215,7 @@ watch([searchTerm, statusFilter], () => {
             </template>
           </Column>
 
+          <!-- Copy empty-state berasal dari domain sehingga "tanpa data" dan "filter kosong" tetap akurat. -->
           <template #empty>
             <div class="table-empty-state">
               <strong>{{ emptyTitle }}</strong>

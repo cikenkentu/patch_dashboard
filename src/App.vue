@@ -1,21 +1,22 @@
 <script setup>
-// App hanya menyediakan shell bersama; isi halaman tetap menjadi tanggung jawab Vue Router.
+// Root shell hanya memiliki chrome global, landmark, dan outlet route.
+// Fetch, filter, serta state bisnis tetap berada di view agar App tidak menjadi dependency lintas-domain.
 import { RouterLink, RouterView } from 'vue-router'
 </script>
 
 <template>
   <div class="app-shell">
-    <!-- Link aksesibilitas untuk pengguna keyboard. -->
+    <!-- Skip-link membentuk kontrak landmark global; targetnya harus tetap tersedia di setiap route. -->
     <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
 
-    <!-- Brand adalah satu-satunya navigasi global dan menjadi aksi kembali ke halaman utama. -->
+    <!-- Brand adalah navigasi produk; navigasi kontekstual seperti "kembali" dimiliki layout report. -->
     <header class="app-header">
       <div class="app-header__inner page-container">
         <RouterLink class="brand" to="/">Patching</RouterLink>
       </div>
     </header>
 
-    <!-- id adalah target skip-link; ubah href dan id bersamaan bila struktur shell berubah. -->
+    <!-- RouterView mengisolasi lifecycle halaman; id ini adalah target stabil untuk skip-link di atas. -->
     <main id="main-content" class="page-container main-content">
       <RouterView />
     </main>
@@ -24,8 +25,8 @@ import { RouterLink, RouterView } from 'vue-router'
 
 <style>
 /*
- * Style sengaja global agar token/reset dapat dipakai view dan override PrimeVue.
- * Variabel di :root adalah sumber nilai bersama; ubah di sini untuk tema seluruh aplikasi.
+ * Style shell sengaja global agar token/reset dapat dipakai view dan override PrimeVue.
+ * Variabel di :root adalah kontrak visual bersama; detail domain tetap scoped di view pemiliknya.
  */
 :root {
   color: #344054;

@@ -1,7 +1,8 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 
-// Kerangka halaman report dipakai semua domain; isi tabel tetap diberikan lewat slot.
+// Layer pertama report: shell halaman yang menyatukan navigasi, heading, dan status hasil.
+// Komponen ini tidak mengetahui endpoint, filter, atau kolom; konten domain masuk melalui slot.
 defineProps({
   title: { type: String, required: true },
   titleId: { type: String, required: true },
@@ -11,6 +12,7 @@ defineProps({
 </script>
 
 <template>
+  <!-- titleId menghubungkan landmark section ke heading unik milik setiap route report. -->
   <section class="report-layout" :aria-labelledby="titleId">
     <RouterLink class="report-layout__back" to="/">Kembali ke dashboard</RouterLink>
 
@@ -19,11 +21,13 @@ defineProps({
         <h1 :id="titleId">{{ title }}</h1>
         <p v-if="description" class="report-layout__description">{{ description }}</p>
       </div>
+      <!-- Perubahan jumlah/loading diumumkan tanpa memindahkan fokus pengguna. -->
       <p v-if="stateLabel" class="report-layout__state" aria-live="polite">
         {{ stateLabel }}
       </p>
     </div>
 
+    <!-- Biasanya diisi ReportTable, tetapi slot menjaga shell tetap independen dari renderer data. -->
     <slot />
   </section>
 </template>

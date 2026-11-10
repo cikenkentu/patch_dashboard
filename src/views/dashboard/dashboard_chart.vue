@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 
-// Chart baru cukup memilih salah satu key ini dari file domain seperti dashboard_cu.vue.
+// Registry ini adalah satu-satunya tempat pemetaan nama chart aplikasi ke konfigurasi Chart.js.
+// Dashboard baru cukup memilih key; aturan domain tidak boleh ditambahkan ke renderer umum ini.
 const CHART_TYPES = Object.freeze({
   doughnut: { chartJsType: 'doughnut', circular: true, cutout: '72%' },
   pie: { chartJsType: 'pie', circular: true },
@@ -12,8 +13,12 @@ const CHART_TYPES = Object.freeze({
   line: { chartJsType: 'line', circular: false },
 })
 
-// Renderer canvas menerima bentuk data generik: [{ key, label, value, color }].
-// Judul hanya dipakai untuk aksesibilitas; heading visual dimiliki DashboardCard.
+/**
+ * Renderer canvas reusable dengan kontrak item { key, label, value, color }.
+ * Komponen ini tidak melakukan fetch dan tidak mengetahui URL report. Ia hanya menggambar state
+ * yang diberikan parent serta mengirim event select-item/select-empty sebagai intent semantik.
+ * Judul dipakai untuk aksesibilitas; heading visual tetap dimiliki DashboardCard.
+ */
 const props = defineProps({
   title: { type: String, required: true },
   chartType: { type: String, required: true },
@@ -23,6 +28,7 @@ const props = defineProps({
   isLoading: { type: Boolean, required: true },
   errorMessage: { type: String, default: '' },
   valueUnit: { type: String, default: '' },
+  centerDetail: { type: String, default: '' },
   interactive: { type: Boolean, default: true },
   // Domain boleh membuka report kosong tanpa membuat renderer mengetahui URL tujuan.
   allowEmptySelection: { type: Boolean, default: false },
@@ -40,15 +46,18 @@ const chartDefinition = computed(() => {
   if (!definition) throw new TypeError(`Chart type "${props.chartType}" belum didukung template.`)
   return definition
 })
+
+// Invariant state: loading menggambarkan request aktif, errorMessage kegagalan terakhir, dan
+// hasData hanya true setelah parent memiliki payload canonical. Nilai total 0 tetap data valid,
+// tetapi sengaja tidak interaktif karena tidak ada segmen report yang dapat dipilih.
 const canSelect = computed(() => (
-  props.interactive && props.hasData && !props.isLoading && !props.errorMessage
+  props.interactive && props.hasData && props.total > 0 && !props.isLoading && !props.errorMessage
 ))
 const canSelectEmpty = computed(() => (
   props.interactive
   && props.allowEmptySelection
   && !props.hasData
   && !props.isLoading
-  && !props.errorMessage
 ))
 const valueSuffix = computed(() => (props.valueUnit ? ` ${props.valueUnit}` : ''))
 
@@ -57,7 +66,10 @@ Chart.defaults.font.family = APP_FONT_FAMILY
 
 const chartAriaLabel = computed(() => {
   if (props.isLoading) return `${props.title}: memuat data chart.`
-  if (props.errorMessage) return `${props.title}: data chart gagal dimuat.`
+  if (props.errorMessage) {
+    const actionHint = canSelectEmpty.value ? ' Aktifkan untuk membuka report kosong.' : ''
+    return `${props.title}: data chart gagal dimuat.${actionHint}`
+  }
   if (!props.hasData) {
     const actionHint = canSelectEmpty.value ? ' Aktifkan untuk membuka report kosong.' : ''
     return `${props.title}: data chart belum tersedia.${actionHint}`
@@ -66,7 +78,8 @@ const chartAriaLabel = computed(() => {
   const details = props.items
     .map((item) => `${formatValue(item.value)} ${item.label.toLowerCase()}`)
     .join(' dan ')
-  return `${props.title}: total ${formatValue(props.total)}${valueSuffix.value}, ${details}.`
+  const centerDetail = props.centerDetail.trim() ? `, ${props.centerDetail.trim()}` : ''
+  return `${props.title}: total ${formatValue(props.total)}${valueSuffix.value}, ${details}${centerDetail}.`
 })
 
 function emptyStateText() {
@@ -79,7 +92,7 @@ function selectEmptyChart() {
   if (canSelectEmpty.value) emit('select-empty')
 }
 
-// Satu plugin menampilkan empty state semua tipe dan total khusus doughnut.
+// Plugin tunggal menyamakan empty/loading/error dan label pusat tanpa membocorkan detail domain.
 const centerLabelPlugin = {
   id: 'dashboardCenterLabel',
   afterDraw(chart) {
@@ -99,12 +112,19 @@ const centerLabelPlugin = {
       ctx.font = `600 13px ${APP_FONT_FAMILY}`
       ctx.fillText(emptyStateText(), x, y)
     } else if (props.chartType === 'doughnut') {
+      const hasCenterDetail = Boolean(props.centerDetail.trim())
       ctx.fillStyle = '#17202a'
       ctx.font = `700 32px ${APP_FONT_FAMILY}`
-      ctx.fillText(formatValue(props.total), x, y - 8)
+      ctx.fillText(formatValue(props.total), x, y - (hasCenterDetail ? 15 : 8))
       ctx.fillStyle = '#667085'
       ctx.font = `600 11px ${APP_FONT_FAMILY}`
-      ctx.fillText(props.valueUnit ? props.valueUnit.toUpperCase() : 'TOTAL', x, y + 20)
+      ctx.fillText(props.valueUnit ? props.valueUnit.toUpperCase() : 'TOTAL', x, y + (hasCenterDetail ? 11 : 20))
+
+      if (hasCenterDetail) {
+        ctx.fillStyle = '#475467'
+        ctx.font = `700 12px ${APP_FONT_FAMILY}`
+        ctx.fillText(props.centerDetail.trim(), x, y + 34)
+      }
     }
 
     ctx.restore()
@@ -113,7 +133,7 @@ const centerLabelPlugin = {
 
 function buildChartData() {
   // Chart lingkaran memerlukan nilai nonzero agar placeholder abu-abu tetap tergambar.
-  if (!props.hasData && chartDefinition.value.circular) {
+  if ((!props.hasData || props.total === 0) && chartDefinition.value.circular) {
     return {
       labels: ['Data belum tersedia'],
       datasets: [{ data: [1], backgroundColor: ['#e4e7ec'], borderWidth: 0 }],
@@ -160,6 +180,7 @@ function destroyChart() {
   chartInstance = null
 }
 
+// Instance selalu dihancurkan sebelum render ulang agar canvas tidak menyimpan listener/dataset lama.
 function renderChart() {
   if (!canvas.value) return
   destroyChart()
@@ -180,6 +201,7 @@ function renderChart() {
         canvas.value.style.cursor = canOpen ? 'pointer' : 'default'
       },
       onClick(_event, elements) {
+        // Renderer mengirim key item saja; validasi route dan navigasi tetap berada di parent domain.
         if (canSelectEmpty.value) {
           emit('select-empty')
           return
@@ -191,7 +213,7 @@ function renderChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          enabled: props.hasData,
+          enabled: props.hasData && props.total > 0,
           callbacks: {
             label(context) {
               const item = props.items[context.dataIndex]
@@ -207,7 +229,7 @@ function renderChart() {
 
 onMounted(renderChart)
 
-// Render ulang hanya ketika konfigurasi atau data yang memengaruhi canvas berubah.
+// Watch eksplisit menjaga render deterministik dan menghindari deep-watch terhadap object domain.
 watch(
   () => [
     props.chartType,
@@ -215,6 +237,7 @@ watch(
     props.hasData,
     props.isLoading,
     props.errorMessage,
+    props.centerDetail,
     props.interactive,
     props.allowEmptySelection,
     props.valueUnit,
@@ -254,7 +277,7 @@ onBeforeUnmount(destroyChart)
   overflow: hidden;
 }
 
-/* Diameter chart lingkaran dibatasi agar konsisten walau jumlah row ringkasan berbeda. */
+/* Diameter dibatasi agar chart antarkartu konsisten; wrapper tetap menyusut mengikuti lebar kolom. */
 .dashboard-chart--circular {
   max-width: 16.25rem;
   max-height: 16.25rem;

@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-`npm run dev` menjalankan frontend sekaligus route API lokal melalui handler backend yang sama. Selama BigFix belum terhubung, `/api/devices` mengembalikan JSON array kosong `[]`.
+`npm run dev` menjalankan frontend sekaligus route API lokal melalui handler backend yang sama. Salin `.env.example` menjadi `.env`, lalu isi `PATCHING_CU_SOURCE_URL`, `PATCHING_CU_SOURCE_USERNAME`, dan `PATCHING_CU_SOURCE_PASSWORD`. Script development, preview, dan backend mandiri memuat `.env` secara otomatis; perubahan konfigurasi berlaku setelah proses di-restart. `/api/devices` tetap mengembalikan array kosong sampai endpoint detail perangkat tersedia.
 
 Build produksi:
 
@@ -50,10 +50,12 @@ Project ini sengaja tetap memakai PrimeVue 4 yang berlisensi MIT. PrimeVue 5 dan
 
 ```text
 backend/
-`-- server.js                   # Route API dan titik integrasi BigFix/database
+|-- server.js                   # HTTP server dan route API internal
+`-- cuDashboard.js              # Fetch, validasi, dan normalisasi ringkasan CU
 src/
 |-- services/
-|   `-- deviceService.js        # Fetch dan validasi kontrak JSON (tanpa detail UI)
+|   |-- cuDashboardService.js   # Boundary kontrak ringkasan dashboard CU
+|   `-- deviceService.js        # Boundary kontrak detail perangkat report
 |-- views/dashboard/
 |   |-- dashboard_view.vue      # Halaman dan grid enam card dashboard
 |   |-- dashboard_card.vue      # Shell box/title/daftar perbandingan reusable
@@ -71,12 +73,14 @@ src/
 
 Repository memakai struktur monorepo ringkas tanpa memindahkan frontend ke package terpisah. Ini cocok selama frontend dan backend dimiliki tim serta siklus rilis yang sama. Pisahkan repository hanya jika keduanya nanti memiliki tim, versioning, akses, atau deployment lifecycle yang benar-benar berbeda.
 
-Alur data CU dapat dibaca secara linear: `backend/server.js` mengirim JSON array, `deviceService.js` memvalidasinya menjadi `Device[]`, lalu domain menyusun komponen general. Dashboard melewati `dashboard_view.vue` -> `dashboard_cu.vue` -> `dashboard_card.vue` + `dashboard_chart.vue`; report melewati `report_cu.vue` -> `report_layout.vue` + `report_table.vue`. Service tidak menyimpan label, warna, kolom, atau keputusan UI; detail tersebut berada di file domain yang menggunakannya.
+Alur dashboard CU dapat dibaca linear: `dashboard_cu.vue` -> `cuDashboardService.js` -> `/api/dashboard/cu` -> `backend/cuDashboard.js` -> sumber internal. Report detail tetap terpisah: `report_cu.vue` -> `deviceService.js` -> `/api/devices`. Service tidak menyimpan label, warna, kolom, atau keputusan UI; detail tersebut berada di file domain yang menggunakannya.
 
 ## Ubah apa di mana
 
-- Ubah URL, fetch, atau validasi kontrak JSON perangkat di `src/services/deviceService.js`.
-- Implementasikan koneksi BigFix/database server-side di `backend/server.js` pada fungsi `loadDevices()`.
+- Ubah mapping tuple dan aturan validasi ringkasan CU di `backend/cuDashboard.js`.
+- Ubah kontrak canonical frontend ringkasan CU di `src/services/cuDashboardService.js`.
+- Ubah fetch atau validasi kontrak detail perangkat di `src/services/deviceService.js`.
+- Implementasikan koneksi detail perangkat server-side di `backend/server.js` pada fungsi `loadDevices()`.
 - Ubah susunan card/grid atau daftar domain aktif di `src/views/dashboard/dashboard_view.vue`.
 - Ubah title, label status, warna, agregasi, atau routing khusus card CU di `src/views/dashboard/dashboard_cu.vue`.
 - Ubah border, spacing, title, atau slot footer seluruh box di `src/views/dashboard/dashboard_card.vue`.
@@ -89,18 +93,20 @@ Alur data CU dapat dibaca secara linear: `backend/server.js` mengirim JSON array
 
 ## Integrasi data
 
-Data CU masuk melalui `src/services/deviceService.js`, sedangkan endpoint API dan akses sumber internal berada di `backend/server.js`. View Dashboard dan Report tidak mengetahui alamat maupun credential BigFix.
+Dashboard dan report memakai pipeline terpisah karena response hitungan tidak memiliki hostname, IP, OS, Last Patch, atau Last Report Time. View tidak mengetahui alamat maupun credential sumber internal.
 
 Alur yang disarankan:
 
 ```text
-Vue frontend -> GET /api/devices -> Backend internal -> BigFix
+Dashboard CU -> GET /api/dashboard/cu -> Backend adapter -> BigFix/query internal
+Report CU    -> GET /api/devices      -> Backend detail  -> BigFix/database
 ```
 
 Frontend memakai endpoint same-origin berikut secara default:
 
 ```text
 GET /api/devices
+GET /api/dashboard/cu
 GET /api/health
 ```
 
@@ -108,7 +114,24 @@ Saat development dan `npm run preview`, Vite memasang handler dari `backend/serv
 
 Jika API memang harus berada pada origin berbeda, override URL sebelum build dengan `VITE_DEVICE_API_URL`. Konfigurasikan CORS di backend dan restart/rebuild setelah variabel berubah. Default `/api/devices` tetap lebih sederhana dan aman.
 
-Semua variabel `VITE_*` dapat terlihat di browser. Jangan menyimpan username, password, token, atau credential BigFix di frontend maupun `.env.local`; saat integrasi dibuat, simpan credential hanya pada environment/secret store proses backend.
+Semua variabel `VITE_*` dapat terlihat di browser. URL dan Basic Auth query CU memakai environment server `PATCHING_CU_SOURCE_URL`, `PATCHING_CU_SOURCE_USERNAME`, dan `PATCHING_CU_SOURCE_PASSWORD`, bukan variabel Vite, komponen Vue, atau UI. Credential wajib berpasangan dan Basic Auth hanya diizinkan melalui HTTPS. Jangan menaruh credential di URL atau commit `.env`; gunakan environment/secret store platform untuk deployment perusahaan. `.env.example` hanya mendokumentasikan nama variabel tanpa nilai rahasia.
+
+Adapter CU menerima satu atau lebih tuple `result[n]` dengan urutan `[Remediated Computer Count, Applicable Computer Count, Fixlet Name]`. Backend menjumlahkan seluruh row lalu mengubahnya menjadi kontrak bernama jelas:
+
+```json
+{
+  "counts": {
+    "patched": 249,
+    "unpatched": 70
+  },
+  "total": 319,
+  "progressPercent": 78.06,
+  "sourceRowCount": 2,
+  "retrievedAt": "2026-11-09T00:00:00.000Z"
+}
+```
+
+`Remediated` setiap row dijumlahkan menjadi `patched`, sedangkan seluruh `Applicable` dijumlahkan menjadi `unpatched`. Total dan progress dihitung sekali di backend. Nilai ini merupakan akumulasi row; bila komputer yang sama terdapat pada beberapa Fixlet, komputer tersebut ikut terhitung pada setiap row sumber.
 
 Endpoint `/api/devices` merespons HTTP 200 dengan `Content-Type: application/json`. Sebelum provider data nyata dihubungkan, respons validnya sengaja berupa array kosong:
 
@@ -116,7 +139,7 @@ Endpoint `/api/devices` merespons HTTP 200 dengan `Content-Type: application/jso
 []
 ```
 
-`deviceService.js` menjadi satu batas validasi frontend dan tidak memuat teks maupun warna tampilan. Saat sample JSON nyata tersedia, backend perlu memetakan respons sumber ke array record canonical dengan field `id`, `hostname`, `ipAddress`, `osVersion`, `patchStatus`, `lastPatch`, dan `lastReportTime`. `patchStatus` hanya menerima `patched` atau `unpatched`; `lastPatch` menerima `YYYY-MM` atau `null`; `lastReportTime` memakai ISO 8601 lengkap dengan zona waktu. Detail pemetaan akhir disesuaikan setelah kontrak JSON backend diberikan, bukan ditebak di komponen Vue.
+`deviceService.js` tetap menjadi batas validasi detail report dan tidak memuat teks maupun warna tampilan. Endpoint detail perangkat kelak perlu mengirim array record canonical dengan field `id`, `hostname`, `ipAddress`, `osVersion`, `patchStatus`, `lastPatch`, dan `lastReportTime`. `patchStatus` hanya menerima `patched` atau `unpatched`; `lastPatch` menerima `YYYY-MM` atau `null`; `lastReportTime` memakai ISO 8601 lengkap dengan zona waktu.
 
 ## Menambah chart atau report baru
 

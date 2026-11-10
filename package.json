@@ -3,11 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
-    "dev": "vite",
+    "dev": "node --env-file-if-exists=.env ./node_modules/vite/bin/vite.js",
     "build": "vite build",
-    "preview": "vite preview",
-    "start:backend": "node backend/server.js"
+    "preview": "node --env-file-if-exists=.env ./node_modules/vite/bin/vite.js preview",
+    "start:backend": "node --env-file-if-exists=.env backend/server.js"
   },
   "dependencies": {
     "@primeuix/themes": "^1.2.3",

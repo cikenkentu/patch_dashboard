@@ -4,17 +4,24 @@ import { useRouter } from 'vue-router'
 import DashboardCard from './dashboard_card.vue'
 import DashboardChart from './dashboard_chart.vue'
 
-// Placeholder visual saja; file ini menjadi domain nyata setelah endpoint tersedia.
+/**
+ * Slot domain mandiri untuk dashboard berikutnya. Saat endpoint tersedia, tambahkan service,
+ * state loading/error, mapping items, dan route report di file ini; reuse Card dan Chart tanpa
+ * memasukkan aturan bisnis slot 4 ke komponen umum.
+ */
 const DASHBOARD = Object.freeze({ title: 'Dashboard 4', reportPath: '/reports/slot-4' })
+// Empty state eksplisit: belum ada payload, bukan hasil pengukuran bernilai nol.
 const EMPTY_ITEMS = Object.freeze([])
 const router = useRouter()
 
+// Renderer hanya mengirim intent; slot domain tetap menjadi pemilik navigasi.
 function openReport() {
   router.push(DASHBOARD.reportPath)
 }
 </script>
 
 <template>
+  <!-- Placeholder mempertahankan ukuran/layout final tanpa menyuntikkan data dummy. -->
   <DashboardCard :title="DASHBOARD.title">
     <DashboardChart
       :title="DASHBOARD.title"

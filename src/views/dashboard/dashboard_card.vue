@@ -1,5 +1,10 @@
 <script setup>
-// Shell visual bersama: domain memasok item, sedangkan card menjaga layout ringkasan tetap konsisten.
+/**
+ * Shell presentasi reusable untuk seluruh dashboard.
+ * Card hanya memiliki heading, slot chart, dan daftar ringkasan; fetch, mapping domain,
+ * serta tujuan route tetap menjadi tanggung jawab file domain seperti dashboard_cu.vue.
+ * Kontrak item yang diterima adalah { key, label, value, color } dengan key stabil.
+ */
 const props = defineProps({
   title: { type: String, required: true },
   items: { type: Array, default: () => [] },
@@ -15,6 +20,7 @@ function formatValue(value) {
   return Number.isFinite(value) ? numberFormatter.format(value) : String(value ?? '—')
 }
 
+// Card meneruskan intent berbasis key; parent domain yang memutuskan apakah intent menjadi navigasi.
 function selectItem(item) {
   if (props.detailsInteractive && props.hasData) emit('select-item', item.key)
 }
@@ -24,10 +30,12 @@ function selectItem(item) {
   <article class="dashboard-card">
     <h2 class="dashboard-card__title">{{ title }}</h2>
 
+    <!-- Slot default menjaga shell bebas dari Chart.js dan memungkinkan renderer lain di masa depan. -->
     <div class="dashboard-card__body">
       <slot />
     </div>
 
+    <!-- Slot details memberi jalan kustomisasi tanpa menduplikasi struktur card yang umum. -->
     <div v-if="$slots.details || items.length" class="dashboard-card__details">
       <slot name="details">
         <!-- Seluruh domain memakai row yang sama; label, warna, dan nilai tetap berasal dari file domain. -->
@@ -93,7 +101,7 @@ function selectItem(item) {
 .dashboard-card__details {
   width: 100%;
   min-width: 0;
-  /* Lima row compact terlihat penuh; overflow baru muncul mulai item keenam/label ekstrem. */
+  /* Tinggi detail dibatasi agar card satu grid tetap sejajar; item tambahan bergulir tanpa mengecilkan chart. */
   max-height: 13rem;
   overflow-x: hidden;
   overflow-y: auto;
@@ -166,6 +174,7 @@ function selectItem(item) {
 }
 
 @media (max-width: 430px) {
+  /* Target sentuh diperbesar di layar sempit tanpa mengubah kontrak atau urutan informasi. */
   .dashboard-card {
     padding: 1.1rem;
   }

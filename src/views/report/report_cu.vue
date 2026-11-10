@@ -6,7 +6,8 @@ import { fetchDevices } from '../../services/deviceService'
 import ReportLayout from './report_layout.vue'
 import ReportTable from './report_table.vue'
 
-// File domain menentukan sumber data, route, filter, kolom, dan format khusus report CU.
+// Domain composer CU adalah satu tempat untuk API, schema, filter, format, dan sinkronisasi route.
+// Ia merangkai ReportLayout + ReportTable tanpa memindahkan aturan CU ke komponen reusable.
 const CU_REPORT = Object.freeze({
   routeName: 'reports',
   dataSource: fetchDevices,
@@ -30,6 +31,7 @@ const CU_PATCH_STATUS = Object.freeze({
   }),
 })
 
+// Konversi zona waktu adalah keputusan domain; nilai canonical dari service tetap tidak diubah.
 const reportTimeFormatter = new Intl.DateTimeFormat('id-ID', {
   timeZone: 'Asia/Bangkok',
   day: '2-digit',
@@ -99,6 +101,7 @@ const columns = Object.freeze([
   },
 ])
 
+// Opsi filter berasal dari metadata status yang sama agar label tabel dan toolbar tidak menyimpang.
 const statusOptions = Object.freeze([
   { label: 'Semua status', value: null },
   { label: CU_PATCH_STATUS.patched.label, value: CU_PATCH_STATUS.patched.value },
@@ -109,13 +112,14 @@ const normalizeStatus = (status) => validStatuses.includes(status) ? status : nu
 
 const route = useRoute()
 const router = useRouter()
+// View domain memiliki lifecycle request dan filter; layout/table hanya menerima state yang sudah siap tampil.
 const devices = ref([])
 const isLoading = ref(true)
 const errorMessage = ref('')
 const searchTerm = ref('')
 const statusFilter = ref(normalizeStatus(route.query.status))
 
-// Prototype memfilter snapshot di browser; backend nanti dapat menerima filter tanpa mengubah tabel.
+// Filtering adalah aturan domain. Jika kelak server-side, kontrak ReportTable tetap menerima `items` terfilter.
 const filteredDevices = computed(() => {
   const query = searchTerm.value.trim().toLocaleLowerCase('id-ID')
 
@@ -130,6 +134,7 @@ const filteredDevices = computed(() => {
   })
 })
 
+// Label hasil dan empty-state diturunkan di sini supaya renderer tidak menebak makna data CU.
 const hasActiveFilters = computed(() => Boolean(searchTerm.value.trim() || statusFilter.value))
 const reportTitle = computed(() => {
   if (statusFilter.value === 'patched') return 'Perangkat sudah di-patch'
@@ -150,6 +155,7 @@ const emptyDescription = computed(() => (
     ? 'Ubah pencarian atau filter status, lalu coba kembali.'
     : 'Data akan tampil setelah sumber data terhubung.'
 ))
+// Nama file membawa scope dan tanggal audit; serialisasi serta sanitasi sel tetap milik ReportTable.
 const exportFilename = computed(() => {
   const scope = statusFilter.value ?? 'semua-status'
   const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date())
@@ -181,6 +187,7 @@ watch(statusFilter, (status) => {
 })
 
 async function loadData() {
+  // Service memvalidasi boundary JSON; view hanya memiliki state request yang terlihat pengguna.
   try {
     devices.value = await CU_REPORT.dataSource()
   } catch (error) {
@@ -195,6 +202,7 @@ onMounted(loadData)
 </script>
 
 <template>
+  <!-- Komposisi domain: shell halaman menerima heading/state, renderer menerima data dan capability opt-in. -->
   <ReportLayout
     title-id="reports-title"
     :title="reportTitle"

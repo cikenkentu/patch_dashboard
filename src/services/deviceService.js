@@ -3,6 +3,7 @@
 // Variabel VITE_* masuk ke bundle browser; jangan pernah isi credential atau token BigFix di sini.
 const DEVICE_API_URL = import.meta.env.VITE_DEVICE_API_URL?.trim() || '/api/devices'
 
+// Menambah kolom domain wajib dilakukan di kontrak ini dan provider backend sebelum dipakai view.
 const DEVICE_FIELDS = Object.freeze([
   'id',
   'hostname',
@@ -13,10 +14,13 @@ const DEVICE_FIELDS = Object.freeze([
   'lastReportTime',
 ])
 
-// Nilai canonical ini adalah bagian kontrak JSON, bukan metadata tampilan.
+// Nilai canonical ini adalah kontrak domain; label dan warna terjemahan tetap dimiliki view.
 const DEVICE_PATCH_STATUSES = Object.freeze(['patched', 'unpatched'])
 
-// Validasi boundary diletakkan di service agar komponen Vue selalu menerima bentuk data yang sama.
+/**
+ * Menormalisasi satu record canonical setelah seluruh field wajib lolos validasi.
+ * Validasi ketat dan all-or-nothing mencegah baris parsial merusak filter, export, atau data-key tabel.
+ */
 function validateDevice(record, index) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw new TypeError(`Perangkat pada indeks ${index} harus berupa object.`)
@@ -27,6 +31,7 @@ function validateDevice(record, index) {
     throw new TypeError(`Perangkat pada indeks ${index} tidak memiliki field ${missingField}.`)
   }
 
+  // `lastPatch` adalah satu-satunya nullable field; field lain diperlukan untuk operasi report.
   const requiredStrings = DEVICE_FIELDS.filter((field) => field !== 'lastPatch')
   for (const field of requiredStrings) {
     if (typeof record[field] !== 'string' || !record[field].trim()) {
@@ -67,6 +72,7 @@ function validateDevices(payload) {
     throw new TypeError('Root respons perangkat harus berupa array JSON.')
   }
 
+  // Satu record invalid menggagalkan response penuh agar UI tidak menampilkan dataset setengah benar.
   const devices = payload.map(validateDevice)
 
   // ID duplikat merusak data-key tabel dan biasanya menandakan mapping backend bermasalah.
@@ -80,6 +86,7 @@ function validateDevices(payload) {
 /**
  * Kontrak satu perangkat yang harus dikirim backend.
  * Bulan patch memakai YYYY-MM; waktu melapor memakai ISO 8601 agar zona waktu sumber tidak hilang.
+ * Kontrak ini sengaja bebas dari label UI sehingga dapat dipakai filter, CSV, dan tabel lain.
  *
  * @typedef {Object} Device
  * @property {string} id ID unik dan stabil untuk data-key tabel.
@@ -116,6 +123,7 @@ export async function fetchDevices() {
     throw new Error(`Gagal mengambil data perangkat (${response.status}).`)
   }
 
+  // Media type menjaga reverse-proxy error page tidak lolos ke validator record.
   const contentType = response.headers.get('content-type') ?? ''
   if (!contentType.toLowerCase().includes('application/json')) {
     throw new TypeError('API perangkat harus mengirim Content-Type application/json.')

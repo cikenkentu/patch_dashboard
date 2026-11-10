@@ -1,4 +1,6 @@
 <script setup>
+// Page ini adalah composition root visual: urutan import/markup menentukan urutan kartu.
+// Fetch dan aturan report sengaja tetap berada di tiap file domain agar page tidak menjadi service hub.
 import DashboardCu from './dashboard_cu.vue'
 import DashboardSlot2 from './dashboard_slot2.vue'
 import DashboardSlot3 from './dashboard_slot3.vue'
@@ -11,7 +13,7 @@ import DashboardSlot6 from './dashboard_slot6.vue'
   <section class="dashboard-page" aria-labelledby="dashboard-title">
     <h1 id="dashboard-title" class="dashboard-heading">Dashboard</h1>
 
-    <!-- Hanya CU memiliki detail status; slot lain tetap sebagai preview doughnut kosong. -->
+    <!-- Dashboard baru ditambahkan sebagai satu komponen domain; grid tidak mengetahui data/route-nya. -->
     <div class="dashboard-grid">
       <DashboardCu />
       <DashboardSlot2 />
@@ -33,7 +35,7 @@ import DashboardSlot6 from './dashboard_slot6.vue'
   margin-bottom: 1.25rem;
 }
 
-/* Tiga kolom menghasilkan dua baris penuh; breakpoint menjaga doughnut tetap terbaca. */
+/* minmax(0, 1fr) mencegah canvas memaksa overflow; row 1fr menyamakan tinggi satu baris. */
 .dashboard-grid {
   display: grid;
   width: 100%;
@@ -50,12 +52,14 @@ import DashboardSlot6 from './dashboard_slot6.vue'
 }
 
 @media (max-width: 1100px) {
+  /* Dua kolom menjaga diameter doughnut dan ringkasan tetap terbaca pada desktop sempit/tablet. */
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 700px) {
+  /* Satu kolom mengembalikan tinggi alami agar kartu tidak menyisakan ruang kosong di mobile. */
   .dashboard-grid {
     grid-auto-rows: auto;
     grid-template-columns: minmax(0, 1fr);
