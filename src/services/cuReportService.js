@@ -1,7 +1,5 @@
-// Frontend selalu berbicara ke backend internal; default same-origin bekerja saat dev dan deployment.
-// VITE_DEVICE_API_URL hanya diperlukan bila API sengaja ditempatkan pada URL berbeda.
-// Variabel VITE_* masuk ke bundle browser; jangan pernah isi credential atau token BigFix di sini.
-const DEVICE_API_URL = import.meta.env.VITE_DEVICE_API_URL?.trim() || '/api/devices'
+// URL same-origin adalah kontrak frontend; hanya backend yang mengetahui endpoint dan auth sumber.
+const CU_REPORT_API_URL = '/api/report/cu'
 
 // Menambah kolom domain wajib dilakukan di kontrak ini dan provider backend sebelum dipakai view.
 const DEVICE_FIELDS = Object.freeze([
@@ -9,6 +7,7 @@ const DEVICE_FIELDS = Object.freeze([
   'hostname',
   'ipAddress',
   'osVersion',
+  'processor',
   'patchStatus',
   'lastPatch',
   'lastReportTime',
@@ -16,12 +15,15 @@ const DEVICE_FIELDS = Object.freeze([
 
 // Nilai canonical ini adalah kontrak domain; label dan warna terjemahan tetap dimiliki view.
 const DEVICE_PATCH_STATUSES = Object.freeze(['patched', 'unpatched'])
+const REQUIRED_DEVICE_STRING_FIELDS = Object.freeze(
+  DEVICE_FIELDS.filter((field) => field !== 'patchStatus' && field !== 'lastPatch'),
+)
 
 /**
  * Menormalisasi satu record canonical setelah seluruh field wajib lolos validasi.
  * Validasi ketat dan all-or-nothing mencegah baris parsial merusak filter, export, atau data-key tabel.
  */
-function validateDevice(record, index) {
+function validateCuReportDevice(record, index) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw new TypeError(`Perangkat pada indeks ${index} harus berupa object.`)
   }
@@ -31,12 +33,18 @@ function validateDevice(record, index) {
     throw new TypeError(`Perangkat pada indeks ${index} tidak memiliki field ${missingField}.`)
   }
 
-  // `lastPatch` adalah satu-satunya nullable field; field lain diperlukan untuk operasi report.
-  const requiredStrings = DEVICE_FIELDS.filter((field) => field !== 'lastPatch')
-  for (const field of requiredStrings) {
+  // Dua field patch belum tersedia di sumber ini; field identitas/inventory tetap wajib lengkap.
+  for (const field of REQUIRED_DEVICE_STRING_FIELDS) {
     if (typeof record[field] !== 'string' || !record[field].trim()) {
       throw new TypeError(`Field ${field} pada perangkat indeks ${index} wajib berupa string.`)
     }
+  }
+
+  if (
+    record.patchStatus !== null
+    && (typeof record.patchStatus !== 'string' || !record.patchStatus.trim())
+  ) {
+    throw new TypeError(`Field patchStatus pada perangkat indeks ${index} harus string atau null.`)
   }
 
   if (
@@ -51,12 +59,13 @@ function validateDevice(record, index) {
     hostname: record.hostname.trim(),
     ipAddress: record.ipAddress.trim(),
     osVersion: record.osVersion.trim(),
-    patchStatus: record.patchStatus.trim(),
+    processor: record.processor.trim(),
+    patchStatus: record.patchStatus?.trim() ?? null,
     lastPatch: record.lastPatch?.trim() ?? null,
     lastReportTime: record.lastReportTime.trim(),
   }
 
-  if (!DEVICE_PATCH_STATUSES.includes(device.patchStatus)) {
+  if (device.patchStatus !== null && !DEVICE_PATCH_STATUSES.includes(device.patchStatus)) {
     throw new TypeError(`Patch status tidak dikenal: ${device.patchStatus}.`)
   }
   const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(device.lastReportTime)
@@ -67,13 +76,13 @@ function validateDevice(record, index) {
   return device
 }
 
-function validateDevices(payload) {
+function validateCuReportDevices(payload) {
   if (!Array.isArray(payload)) {
     throw new TypeError('Root respons perangkat harus berupa array JSON.')
   }
 
   // Satu record invalid menggagalkan response penuh agar UI tidak menampilkan dataset setengah benar.
-  const devices = payload.map(validateDevice)
+  const devices = payload.map(validateCuReportDevice)
 
   // ID duplikat merusak data-key tabel dan biasanya menandakan mapping backend bermasalah.
   if (new Set(devices.map((device) => device.id)).size !== devices.length) {
@@ -88,12 +97,13 @@ function validateDevices(payload) {
  * Bulan patch memakai YYYY-MM; waktu melapor memakai ISO 8601 agar zona waktu sumber tidak hilang.
  * Kontrak ini sengaja bebas dari label UI sehingga dapat dipakai filter, CSV, dan tabel lain.
  *
- * @typedef {Object} Device
+ * @typedef {Object} CuReportDevice
  * @property {string} id ID unik dan stabil untuk data-key tabel.
  * @property {string} hostname Nama perangkat.
  * @property {string} ipAddress Alamat IP perangkat.
  * @property {string} osVersion Nama dan versi OS.
- * @property {'patched'|'unpatched'} patchStatus Status patch yang sudah dinormalisasi backend.
+ * @property {string} processor Informasi processor dari sumber inventory; belum ditampilkan sebagai kolom.
+ * @property {'patched'|'unpatched'|null} patchStatus Status patch, atau null sampai sumber tersedia.
  * @property {string|null} lastPatch Bulan patch terakhir dalam format YYYY-MM, atau null bila belum diketahui.
  * @property {string} lastReportTime Timestamp ISO 8601 dengan Z/offset saat terakhir melapor.
  */
@@ -102,15 +112,15 @@ function validateDevices(payload) {
  * Mengambil dataset perangkat melalui satu pintu supaya view tidak mengetahui detail backend.
  * JSON `[]` adalah respons valid ketika sumber belum memiliki data.
  *
- * @returns {Promise<Device[]>}
+ * @returns {Promise<CuReportDevice[]>}
  * @throws {Error|TypeError} Jika jaringan, HTTP, JSON, atau bentuk respons tidak valid.
  */
-export async function fetchDevices() {
+export async function fetchCuReportDevices() {
   // Browser hanya memanggil backend internal; autentikasi, retry, audit, dan BigFix berada di backend.
   // Jangan menambahkan credential atau token berumur panjang ke header request frontend.
   let response
   try {
-    response = await fetch(DEVICE_API_URL, {
+    response = await fetch(CU_REPORT_API_URL, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })
@@ -138,7 +148,7 @@ export async function fetchDevices() {
 
   try {
     // JSON hanya melewati boundary ini setelah setiap record memenuhi kontrak canonical.
-    return validateDevices(payload)
+    return validateCuReportDevices(payload)
   } catch (error) {
     throw new Error('Respons API perangkat bukan JSON Device yang valid.', { cause: error })
   }

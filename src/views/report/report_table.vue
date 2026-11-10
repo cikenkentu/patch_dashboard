@@ -197,11 +197,17 @@ watch([searchTerm, statusFilter], () => {
 
             <template #body="{ data }">
               <Tag
-                v-if="column.type === 'status'"
+                v-if="column.type === 'status' && data[column.field] != null"
                 :value="formatColumnValue(column, data)"
                 :severity="getColumnSeverity(column, data)"
                 :class="getColumnCellClass(column, data)"
               />
+              <span
+                v-else-if="column.type === 'status'"
+                :class="getColumnCellClass(column, data)"
+              >
+                {{ formatColumnValue(column, data) }}
+              </span>
               <time
                 v-else-if="column.type === 'time'"
                 :datetime="data[column.field] || undefined"

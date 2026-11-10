@@ -2,7 +2,9 @@ import { createServer } from 'node:http'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { CuDashboardSourceError, loadCuDashboard } from './cuDashboard.js'
+import { loadCuDashboard } from './cuDashboard.js'
+import { JsonSourceError } from './jsonSourceClient.js'
+import { loadCuReport } from './report/report_cu.js'
 
 // Lapisan ini hanya memiliki transport HTTP/routing; fetch dan transformasi vendor tetap di adapter.
 // API bersifat read-only dan semua response memakai JSON tanpa meneruskan credential ke browser.
@@ -12,6 +14,21 @@ const JSON_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
   'X-Content-Type-Options': 'nosniff',
 }
+
+// Route registry menjaga server tetap tipis saat domain dashboard/report berikutnya ditambahkan.
+// Loader adalah satu-satunya bagian yang berbeda; kebijakan error dan respons tetap konsisten.
+const DATA_ROUTES = new Map([
+  ['/api/dashboard/cu', {
+    loader: loadCuDashboard,
+    logLabel: 'dashboard-cu',
+    publicMessage: 'Ringkasan CU belum dapat dimuat.',
+  }],
+  ['/api/report/cu', {
+    loader: loadCuReport,
+    logLabel: 'report-cu',
+    publicMessage: 'Data report CU belum dapat dimuat.',
+  }],
+])
 
 /** Satu serializer menjaga header keamanan dan Content-Length konsisten pada seluruh route API. */
 function sendJson(response, statusCode, payload, extraHeaders = {}) {
@@ -24,15 +41,19 @@ function sendJson(response, statusCode, payload, extraHeaders = {}) {
   response.end(body)
 }
 
-/**
- * Extension point khusus detail perangkat untuk report, bukan sumber ringkasan dashboard.
- * Implementasi kelak harus mengembalikan kontrak Device canonical; mapping BigFix/database tidak
- * boleh dipindah ke route atau Vue. Array kosong berarti provider belum tersedia, bukan data palsu.
- *
- * @returns {Promise<Array<object>>}
- */
-async function loadDevices() {
-  return []
+/** Menjalankan adapter domain tanpa membocorkan URL, body vendor, cause, atau credential ke log/API. */
+async function serveDataRoute(response, route) {
+  try {
+    return sendJson(response, 200, await route.loader())
+  } catch (error) {
+    const isKnownError = error instanceof JsonSourceError
+    const code = isKnownError ? error.code : 'UPSTREAM_UNAVAILABLE'
+    const statusCode = isKnownError ? error.statusCode : 502
+
+    // Hanya identitas route dan kode terklasifikasi yang dicatat; raw Error dapat membawa URL/cause.
+    console.error('Gagal memuat data upstream.', { route: route.logLabel, code })
+    return sendJson(response, statusCode, { code, message: route.publicMessage })
+  }
 }
 
 /**
@@ -57,36 +78,8 @@ export async function handleApiRequest(request, response, next) {
     return sendJson(response, 200, { status: 'ok' })
   }
 
-  if (pathname === '/api/dashboard/cu') {
-    try {
-      return sendJson(response, 200, await loadCuDashboard())
-    } catch (error) {
-      // Hanya error domain yang boleh menentukan status; error tak dikenal tetap menjadi 502 aman.
-      const isKnownError = error instanceof CuDashboardSourceError
-      const code = isKnownError ? error.code : 'UPSTREAM_UNAVAILABLE'
-      const statusCode = isKnownError ? error.statusCode : 502
-
-      // Log disanitasi: URL, credential, body upstream, dan stack tidak dicetak.
-      console.error('Gagal memuat ringkasan CU:', { code, message: error.message })
-      return sendJson(response, statusCode, {
-        code,
-        message: 'Ringkasan CU belum dapat dimuat.',
-      })
-    }
-  }
-
-  if (pathname === '/api/devices') {
-    try {
-      const devices = await loadDevices()
-      if (!Array.isArray(devices)) throw new TypeError('Device provider harus mengembalikan array.')
-
-      return sendJson(response, 200, devices)
-    } catch (error) {
-      // Detail internal hanya dicatat di server; browser menerima pesan aman tanpa stack/credential.
-      console.error('Gagal memuat data perangkat:', error)
-      return sendJson(response, 502, { message: 'Data perangkat belum dapat dimuat.' })
-    }
-  }
+  const dataRoute = DATA_ROUTES.get(pathname)
+  if (dataRoute) return serveDataRoute(response, dataRoute)
 
   return sendJson(response, 404, { message: 'Endpoint tidak ditemukan.' })
 }
@@ -101,8 +94,8 @@ function startServer() {
 
   const server = createServer((request, response) => {
     // Guard terakhir menangani bug route tanpa menimpa response yang sudah mulai dikirim.
-    handleApiRequest(request, response).catch((error) => {
-      console.error('Request API gagal:', error)
+    handleApiRequest(request, response).catch(() => {
+      console.error('Request API gagal.', { code: 'INTERNAL_ERROR' })
       if (!response.headersSent) sendJson(response, 500, { message: 'Terjadi kesalahan pada server.' })
       else response.end()
     })

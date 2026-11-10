@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { fetchDevices } from '../../services/deviceService'
+import { fetchCuReportDevices } from '../../services/cuReportService'
 import ReportLayout from './report_layout.vue'
 import ReportTable from './report_table.vue'
 
@@ -10,7 +10,7 @@ import ReportTable from './report_table.vue'
 // Ia merangkai ReportLayout + ReportTable tanpa memindahkan aturan CU ke komponen reusable.
 const CU_REPORT = Object.freeze({
   routeName: 'reports',
-  dataSource: fetchDevices,
+  dataSource: fetchCuReportDevices,
   searchFields: ['hostname', 'ipAddress'],
   statusField: 'patchStatus',
 })
@@ -64,7 +64,7 @@ function formatLastPatch(value) {
 
 function getStatus(status) {
   return CU_PATCH_STATUS[status] ?? {
-    label: 'Tidak diketahui',
+    label: '—',
     severity: 'secondary',
     cellClass: 'cu-status-tag',
   }

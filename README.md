@@ -1,6 +1,6 @@
 # Patching Dashboard
 
-Dashboard internal untuk menampilkan ringkasan dan report status patch perangkat. Frontend Vue dan backend Node disimpan dalam satu repository; data CU tetap menampilkan empty state sampai sumber nyata terhubung. Lima card lain hanya menampilkan doughnut kosong tanpa status atau angka palsu.
+Dashboard internal untuk menampilkan ringkasan dan report status patch perangkat. Frontend Vue dan backend Node disimpan dalam satu repository; data CU tetap menampilkan empty state sampai sumber dashboard atau report terkait terhubung. Lima card lain hanya menampilkan doughnut kosong tanpa status atau angka palsu.
 
 ## Menjalankan project
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-`npm run dev` menjalankan frontend sekaligus route API lokal melalui handler backend yang sama. Salin `.env.example` menjadi `.env`, lalu isi `PATCHING_CU_SOURCE_URL`, `PATCHING_CU_SOURCE_USERNAME`, dan `PATCHING_CU_SOURCE_PASSWORD`. Script development, preview, dan backend mandiri memuat `.env` secara otomatis; perubahan konfigurasi berlaku setelah proses di-restart. `/api/devices` tetap mengembalikan array kosong sampai endpoint detail perangkat tersedia.
+`npm run dev` menjalankan frontend sekaligus route API lokal melalui handler backend yang sama. Salin `.env.example` menjadi `.env`, lalu isi URL dashboard pada `PATCHING_CU_SOURCE_URL`, URL report pada `PATCHING_CU_REPORT_SOURCE_URL`, serta credential bersama pada `PATCHING_CU_SOURCE_USERNAME` dan `PATCHING_CU_SOURCE_PASSWORD`. Script development, preview, dan backend mandiri memuat `.env` secara otomatis; perubahan konfigurasi berlaku setelah proses di-restart.
 
 Build produksi:
 
@@ -50,12 +50,15 @@ Project ini sengaja tetap memakai PrimeVue 4 yang berlisensi MIT. PrimeVue 5 dan
 
 ```text
 backend/
-|-- server.js                   # HTTP server dan route API internal
-`-- cuDashboard.js              # Fetch, validasi, dan normalisasi ringkasan CU
+|-- server.js                    # HTTP server dan route API internal
+|-- jsonSourceClient.js          # Transport JSON, Basic Auth, timeout, dan error upstream reusable
+|-- cuDashboard.js               # Validasi dan normalisasi ringkasan CU
+`-- report/
+    `-- report_cu.js             # Validasi dan mapping tuple detail report CU
 src/
 |-- services/
-|   |-- cuDashboardService.js   # Boundary kontrak ringkasan dashboard CU
-|   `-- deviceService.js        # Boundary kontrak detail perangkat report
+|   |-- cuDashboardService.js    # Boundary kontrak ringkasan dashboard CU
+|   `-- cuReportService.js       # Boundary kontrak detail perangkat report CU
 |-- views/dashboard/
 |   |-- dashboard_view.vue      # Halaman dan grid enam card dashboard
 |   |-- dashboard_card.vue      # Shell box/title/daftar perbandingan reusable
@@ -73,14 +76,15 @@ src/
 
 Repository memakai struktur monorepo ringkas tanpa memindahkan frontend ke package terpisah. Ini cocok selama frontend dan backend dimiliki tim serta siklus rilis yang sama. Pisahkan repository hanya jika keduanya nanti memiliki tim, versioning, akses, atau deployment lifecycle yang benar-benar berbeda.
 
-Alur dashboard CU dapat dibaca linear: `dashboard_cu.vue` -> `cuDashboardService.js` -> `/api/dashboard/cu` -> `backend/cuDashboard.js` -> sumber internal. Report detail tetap terpisah: `report_cu.vue` -> `deviceService.js` -> `/api/devices`. Service tidak menyimpan label, warna, kolom, atau keputusan UI; detail tersebut berada di file domain yang menggunakannya.
+Alur dashboard CU dapat dibaca linear: `dashboard_cu.vue` -> `cuDashboardService.js` -> `/api/dashboard/cu` -> `backend/cuDashboard.js` -> `backend/jsonSourceClient.js` -> sumber internal. Report detail tetap terpisah: `report_cu.vue` -> `cuReportService.js` -> `/api/report/cu` -> `backend/report/report_cu.js` -> `backend/jsonSourceClient.js` -> sumber internal. Service tidak menyimpan label, warna, kolom, atau keputusan UI; detail tersebut berada di file domain yang menggunakannya.
 
 ## Ubah apa di mana
 
 - Ubah mapping tuple dan aturan validasi ringkasan CU di `backend/cuDashboard.js`.
 - Ubah kontrak canonical frontend ringkasan CU di `src/services/cuDashboardService.js`.
-- Ubah fetch atau validasi kontrak detail perangkat di `src/services/deviceService.js`.
-- Implementasikan koneksi detail perangkat server-side di `backend/server.js` pada fungsi `loadDevices()`.
+- Ubah mapping tuple dan aturan validasi detail report CU di `backend/report/report_cu.js`.
+- Ubah fetch atau validasi kontrak detail report CU di `src/services/cuReportService.js`.
+- Ubah transport JSON, Basic Auth, timeout, atau pemetaan error upstream bersama di `backend/jsonSourceClient.js`.
 - Ubah susunan card/grid atau daftar domain aktif di `src/views/dashboard/dashboard_view.vue`.
 - Ubah title, label status, warna, agregasi, atau routing khusus card CU di `src/views/dashboard/dashboard_cu.vue`.
 - Ubah border, spacing, title, atau slot footer seluruh box di `src/views/dashboard/dashboard_card.vue`.
@@ -99,22 +103,20 @@ Alur yang disarankan:
 
 ```text
 Dashboard CU -> GET /api/dashboard/cu -> Backend adapter -> BigFix/query internal
-Report CU    -> GET /api/devices      -> Backend detail  -> BigFix/database
+Report CU    -> GET /api/report/cu    -> Backend adapter -> BigFix/query internal
 ```
 
 Frontend memakai endpoint same-origin berikut secara default:
 
 ```text
-GET /api/devices
 GET /api/dashboard/cu
+GET /api/report/cu
 GET /api/health
 ```
 
 Saat development dan `npm run preview`, Vite memasang handler dari `backend/server.js` secara langsung. Untuk deployment, jalankan API dengan `npm run start:backend`, layani folder `dist` menggunakan web server perusahaan, lalu arahkan path `/api` ke backend melalui reverse proxy. Dengan pola same-origin ini frontend tidak membutuhkan CORS.
 
-Jika API memang harus berada pada origin berbeda, override URL sebelum build dengan `VITE_DEVICE_API_URL`. Konfigurasikan CORS di backend dan restart/rebuild setelah variabel berubah. Default `/api/devices` tetap lebih sederhana dan aman.
-
-Semua variabel `VITE_*` dapat terlihat di browser. URL dan Basic Auth query CU memakai environment server `PATCHING_CU_SOURCE_URL`, `PATCHING_CU_SOURCE_USERNAME`, dan `PATCHING_CU_SOURCE_PASSWORD`, bukan variabel Vite, komponen Vue, atau UI. Credential wajib berpasangan dan Basic Auth hanya diizinkan melalui HTTPS. Jangan menaruh credential di URL atau commit `.env`; gunakan environment/secret store platform untuk deployment perusahaan. `.env.example` hanya mendokumentasikan nama variabel tanpa nilai rahasia.
+Frontend selalu memanggil route same-origin dan tidak mengetahui URL sumber. URL dashboard memakai environment server `PATCHING_CU_SOURCE_URL`, sedangkan URL report memakai `PATCHING_CU_REPORT_SOURCE_URL`. Keduanya memakai credential bersama `PATCHING_CU_SOURCE_USERNAME` dan `PATCHING_CU_SOURCE_PASSWORD` melalui `backend/jsonSourceClient.js`. Semua variabel `VITE_*` dapat terlihat di browser, sehingga URL sumber dan credential tidak boleh dipindahkan ke variabel Vite, komponen Vue, atau UI. Credential wajib berpasangan dan Basic Auth hanya diizinkan melalui HTTPS. Jangan menaruh credential di URL atau commit `.env`; gunakan environment/secret store platform untuk deployment perusahaan. `.env.example` hanya mendokumentasikan nama variabel tanpa nilai rahasia.
 
 Adapter CU menerima satu atau lebih tuple `result[n]` dengan urutan `[Remediated Computer Count, Applicable Computer Count, Fixlet Name]`. Backend menjumlahkan seluruh row lalu mengubahnya menjadi kontrak bernama jelas:
 
@@ -133,17 +135,29 @@ Adapter CU menerima satu atau lebih tuple `result[n]` dengan urutan `[Remediated
 
 `Remediated` setiap row dijumlahkan menjadi `patched`, sedangkan seluruh `Applicable` dijumlahkan menjadi `unpatched`. Total dan progress dihitung sekali di backend. Nilai ini merupakan akumulasi row; bila komputer yang sama terdapat pada beberapa Fixlet, komputer tersebut ikut terhitung pada setiap row sumber.
 
-Endpoint `/api/devices` merespons HTTP 200 dengan `Content-Type: application/json`. Sebelum provider data nyata dihubungkan, respons validnya sengaja berupa array kosong:
+Adapter report CU menerima setiap `result[n]` dalam urutan vendor yang tepat:
 
-```json
-[]
+```text
+[hostname, ipAddresses, osVersion, processor, lastReportTime]
 ```
 
-`deviceService.js` tetap menjadi batas validasi detail report dan tidak memuat teks maupun warna tampilan. Endpoint detail perangkat kelak perlu mengirim array record canonical dengan field `id`, `hostname`, `ipAddress`, `osVersion`, `patchStatus`, `lastPatch`, dan `lastReportTime`. `patchStatus` hanya menerima `patched` atau `unpatched`; `lastPatch` menerima `YYYY-MM` atau `null`; `lastReportTime` memakai ISO 8601 lengkap dengan zona waktu.
+`backend/report/report_cu.js` memvalidasi setiap tuple lalu memetakannya ke record canonical berikut:
+
+| Nilai sumber | Field canonical | Aturan |
+|---|---|---|
+| `hostname` | `id`, `hostname` | Hostname wajib unik; versi lowercase dipakai sebagai ID sementara. |
+| `ipAddresses` | `ipAddress` | Daftar IP divalidasi, dideduplikasi, lalu disimpan sebagai string berseparator koma. |
+| `osVersion` | `osVersion` | Teks OS dipertahankan setelah validasi. |
+| `processor` | `processor` | Nilai dipertahankan dalam object/service untuk penggunaan mendatang, tetapi belum menjadi kolom tabel. |
+| - | `patchStatus` | Selalu `null` karena endpoint report ini belum menyediakan status patch. |
+| - | `lastPatch` | Selalu `null` karena endpoint report ini belum menyediakan bulan patch terakhir. |
+| `lastReportTime` | `lastReportTime` | Waktu sumber wajib memiliki zona waktu lalu dinormalisasi menjadi ISO 8601 UTC. |
+
+`src/services/cuReportService.js` menjadi boundary validasi frontend untuk array canonical tersebut. `result: []` tetap valid dan ditampilkan sebagai empty state, bukan data palsu. Search hostname/IP, dropdown status, pagination, dan export CSV tetap memakai konfigurasi report yang sama. Karena `patchStatus` saat ini `null`, pilihan **Semua status** menampilkan data, sedangkan filter **Sudah di-patch** atau **Belum di-patch** baru menghasilkan data setelah sumber status tersedia. `Last Patch` juga tampil sebagai nilai kosong sampai field tersebut memiliki sumber resmi.
 
 ## Menambah chart atau report baru
 
-`dashboard_view.vue` menyusun satu domain CU dan lima placeholder doughnut kosong. Setiap domain baru menyusun `DashboardCard` sebagai box dan daftar perbandingan umum, serta `DashboardChart` sebagai renderer canvas. Isi khusus seperti title, label, warna, nilai, endpoint, agregasi, dan tujuan report tetap berada di file domain tersebut. Detail status di bawah chart baru muncul ketika file domain mengirim `items` ke `DashboardCard`; karena itu hanya CU yang menampilkannya saat ini.
+`dashboard_view.vue` menyusun satu domain CU dan lima placeholder doughnut kosong. Setiap domain baru menyusun `DashboardCard` sebagai shell box serta `DashboardChart` sebagai renderer canvas. Isi khusus seperti title, label, warna, nilai, endpoint, agregasi, tujuan report, dan detail bawah card tetap berada di file domain tersebut. CU memakai dua count hanya sebagai dataset doughnut, sedangkan slot detail card menampilkan satu progress bar dari `progressPercent` backend. Klik chart atau link report CU membuka `/reports` tanpa filter sampai sumber report menyediakan `patchStatus` per perangkat.
 
 Template `dashboard_chart.vue` menerima item berbentuk `{ key, label, value, color }`. Chart type yang tersedia adalah `doughnut`, `pie`, `polarArea`, `bar`, `horizontalBar`, dan `line`. Renderer, loading state, empty state, tooltip, angka, interaksi canvas, serta responsiveness tidak perlu disalin ke file domain baru.
 
