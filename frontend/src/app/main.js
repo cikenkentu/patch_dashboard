@@ -9,11 +9,11 @@ import App from './App.vue'
 // Placeholder menjaga invariant satu card : satu route report tanpa mencampur schema antardomain.
 // Saat slot menjadi domain nyata, ganti satu entry dan file pasangannya; jangan menambah router kedua.
 const reportSlotRoutes = [
-  { path: '/reports/slot-2', name: 'report-slot-2', component: () => import('./views/report/report_slot2.vue') },
-  { path: '/reports/slot-3', name: 'report-slot-3', component: () => import('./views/report/report_slot3.vue') },
-  { path: '/reports/slot-4', name: 'report-slot-4', component: () => import('./views/report/report_slot4.vue') },
-  { path: '/reports/slot-5', name: 'report-slot-5', component: () => import('./views/report/report_slot5.vue') },
-  { path: '/reports/slot-6', name: 'report-slot-6', component: () => import('./views/report/report_slot6.vue') },
+  { path: '/reports/slot-2', name: 'report-slot-2', component: () => import('../features/placeholders/report/report_slot2.vue') },
+  { path: '/reports/slot-3', name: 'report-slot-3', component: () => import('../features/placeholders/report/report_slot3.vue') },
+  { path: '/reports/slot-4', name: 'report-slot-4', component: () => import('../features/placeholders/report/report_slot4.vue') },
+  { path: '/reports/slot-5', name: 'report-slot-5', component: () => import('../features/placeholders/report/report_slot5.vue') },
+  { path: '/reports/slot-6', name: 'report-slot-6', component: () => import('../features/placeholders/report/report_slot6.vue') },
 ]
 
 // Entry point memiliki daftar route agar topology aplikasi dapat diaudit dari satu file.
@@ -27,13 +27,13 @@ const router = createRouter({
       path: '/',
       name: 'dashboard',
       // Halaman pusat menyusun domain dashboard aktif tanpa menduplikasi renderer.
-      component: () => import('./views/dashboard/dashboard_view.vue'),
+      component: () => import('../pages/dashboard_view.vue'),
     },
     {
       path: '/reports',
       name: 'reports',
       // Report CU membaca filter status langsung dari query ?status=patched/unpatched.
-      component: () => import('./views/report/report_cu.vue'),
+      component: () => import('../features/cu/report/report_cu.vue'),
     },
     ...reportSlotRoutes,
   ],

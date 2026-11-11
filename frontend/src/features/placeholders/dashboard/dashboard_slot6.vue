@@ -1,15 +1,15 @@
 <script setup>
 import { useRouter } from 'vue-router'
 
-import DashboardCard from './dashboard_card.vue'
-import DashboardChart from './dashboard_chart.vue'
+import DashboardCard from '../../../shared/dashboard/dashboard_card.vue'
+import DashboardChart from '../../../shared/dashboard/dashboard_chart.vue'
 
 /**
  * Slot domain mandiri untuk dashboard berikutnya. Saat endpoint tersedia, tambahkan service,
  * state loading/error, mapping items, dan route report di file ini; reuse Card dan Chart tanpa
- * memasukkan aturan bisnis slot 3 ke komponen umum.
+ * memasukkan aturan bisnis slot 6 ke komponen umum.
  */
-const DASHBOARD = Object.freeze({ title: 'Dashboard 3', reportPath: '/reports/slot-3' })
+const DASHBOARD = Object.freeze({ title: 'Dashboard 6', reportPath: '/reports/slot-6' })
 // Empty state eksplisit: belum ada payload, bukan hasil pengukuran bernilai nol.
 const EMPTY_ITEMS = Object.freeze([])
 const router = useRouter()

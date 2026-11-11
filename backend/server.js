@@ -2,9 +2,8 @@ import { createServer } from 'node:http'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { loadCuDashboard } from './cuDashboard.js'
-import { JsonSourceError } from './jsonSourceClient.js'
-import { loadCuReport } from './report/report_cu.js'
+import { dataRoutes } from './features/routes.js'
+import { JsonSourceError } from './shared/jsonSourceClient.js'
 
 // Lapisan ini hanya memiliki transport HTTP/routing; fetch dan transformasi vendor tetap di adapter.
 // API bersifat read-only dan semua response memakai JSON tanpa meneruskan credential ke browser.
@@ -17,18 +16,7 @@ const JSON_HEADERS = {
 
 // Route registry menjaga server tetap tipis saat domain dashboard/report berikutnya ditambahkan.
 // Loader adalah satu-satunya bagian yang berbeda; kebijakan error dan respons tetap konsisten.
-const DATA_ROUTES = new Map([
-  ['/api/dashboard/cu', {
-    loader: loadCuDashboard,
-    logLabel: 'dashboard-cu',
-    publicMessage: 'Ringkasan CU belum dapat dimuat.',
-  }],
-  ['/api/report/cu', {
-    loader: loadCuReport,
-    logLabel: 'report-cu',
-    publicMessage: 'Data report CU belum dapat dimuat.',
-  }],
-])
+const DATA_ROUTES = dataRoutes
 
 /** Satu serializer menjaga header keamanan dan Content-Length konsisten pada seluruh route API. */
 function sendJson(response, statusCode, payload, extraHeaders = {}) {

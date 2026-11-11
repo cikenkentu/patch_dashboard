@@ -1,4 +1,4 @@
-// File ini hanya merangkai tooling: kontrak API dan business mapping tetap berada di backend/src.
+// File ini hanya merangkai tooling: kontrak API dan business mapping tetap berada di backend.
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { handleApiRequest } from './backend/server.js'
@@ -24,8 +24,13 @@ function internalApi() {
 }
 
 export default defineConfig({
+  // Source aplikasi berada di frontend/; package/tooling tetap di root repository.
+  root: 'frontend',
   plugins: [vue(), internalApi()],
   build: {
+    // Artifact tetap ditulis ke dist/ pada root agar kontrak deployment tidak berubah.
+    outDir: '../dist',
+    emptyOutDir: true,
     // Notice ikut artifact; package-lock.json tetap sumber inventaris dependency yang otoritatif.
     license: { fileName: 'THIRD_PARTY_LICENSES.txt' },
   },

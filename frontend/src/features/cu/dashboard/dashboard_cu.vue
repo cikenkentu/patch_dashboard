@@ -2,9 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { fetchCuDashboardSummary } from '../../services/cuDashboardService'
-import DashboardCard from './dashboard_card.vue'
-import DashboardChart from './dashboard_chart.vue'
+import { fetchCuDashboardSummary } from './cuDashboardService'
+import DashboardCard from '../../../shared/dashboard/dashboard_card.vue'
+import DashboardChart from '../../../shared/dashboard/dashboard_chart.vue'
 
 /**
  * Composition root khusus domain CU.

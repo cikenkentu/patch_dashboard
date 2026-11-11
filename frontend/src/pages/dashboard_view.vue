@@ -1,12 +1,12 @@
 <script setup>
 // Page ini adalah composition root visual: urutan import/markup menentukan urutan kartu.
 // Fetch dan aturan report sengaja tetap berada di tiap file domain agar page tidak menjadi service hub.
-import DashboardCu from './dashboard_cu.vue'
-import DashboardSlot2 from './dashboard_slot2.vue'
-import DashboardSlot3 from './dashboard_slot3.vue'
-import DashboardSlot4 from './dashboard_slot4.vue'
-import DashboardSlot5 from './dashboard_slot5.vue'
-import DashboardSlot6 from './dashboard_slot6.vue'
+import DashboardCu from '../features/cu/dashboard/dashboard_cu.vue'
+import DashboardSlot2 from '../features/placeholders/dashboard/dashboard_slot2.vue'
+import DashboardSlot3 from '../features/placeholders/dashboard/dashboard_slot3.vue'
+import DashboardSlot4 from '../features/placeholders/dashboard/dashboard_slot4.vue'
+import DashboardSlot5 from '../features/placeholders/dashboard/dashboard_slot5.vue'
+import DashboardSlot6 from '../features/placeholders/dashboard/dashboard_slot6.vue'
 </script>
 
 <template>

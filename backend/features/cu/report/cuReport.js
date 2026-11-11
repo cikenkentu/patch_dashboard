@@ -1,6 +1,6 @@
 import { isIP } from 'node:net'
 
-import { fetchJsonSource, invalidSourcePayload } from '../jsonSourceClient.js'
+import { fetchJsonSource, invalidSourcePayload } from '../../../shared/jsonSourceClient.js'
 
 const REPORT_SOURCE_URL_ENV = 'PATCHING_CU_REPORT_SOURCE_URL'
 const SOURCE_USERNAME_ENV = 'PATCHING_CU_SOURCE_USERNAME'

@@ -1,4 +1,4 @@
-import { fetchJsonSource, invalidSourcePayload } from './jsonSourceClient.js'
+import { fetchJsonSource, invalidSourcePayload } from '../../../shared/jsonSourceClient.js'
 
 const SOURCE_URL_ENV = 'PATCHING_CU_SOURCE_URL'
 const SOURCE_USERNAME_ENV = 'PATCHING_CU_SOURCE_USERNAME'
@@ -39,7 +39,7 @@ function parseCount(value, fieldName) {
  *   progressPercent: number|null,
  *   sourceRowCount: number
  * }} Ringkasan canonical tanpa metadata atau credential vendor.
- * @throws {import('./jsonSourceClient.js').JsonSourceError} Jika bentuk atau nilai payload melanggar kontrak.
+ * @throws {import('../../../shared/jsonSourceClient.js').JsonSourceError} Jika bentuk atau nilai payload melanggar kontrak.
  */
 export function normalizeCuDashboardPayload(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -93,7 +93,7 @@ export function normalizeCuDashboardPayload(payload) {
  * adapter ini hanya memegang aturan tuple dan agregasi khusus dashboard CU.
  *
  * @returns {Promise<ReturnType<typeof normalizeCuDashboardPayload> & { retrievedAt: string }>}
- * @throws {import('./jsonSourceClient.js').JsonSourceError} Jika konfigurasi, jaringan, atau respons sumber tidak valid.
+ * @throws {import('../../../shared/jsonSourceClient.js').JsonSourceError} Jika konfigurasi, jaringan, atau respons sumber tidak valid.
  */
 export async function loadCuDashboard() {
   const payload = await fetchJsonSource({

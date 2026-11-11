@@ -1,6 +1,6 @@
 <script setup>
-import ReportLayout from './report_layout.vue'
-import ReportTable from './report_table.vue'
+import ReportLayout from '../../../shared/report/report_layout.vue'
+import ReportTable from '../../../shared/report/report_table.vue'
 
 // Placeholder menjaga pasangan satu route : satu dashboard tanpa membawa mock data.
 // Saat domain 4 tersedia, pertahankan dua layer reusable ini lalu tambahkan config/state khusus domain di sini.

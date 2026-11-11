@@ -50,50 +50,69 @@ Project ini sengaja tetap memakai PrimeVue 4 yang berlisensi MIT. PrimeVue 5 dan
 
 ```text
 backend/
-|-- server.js                    # HTTP server dan route API internal
-|-- jsonSourceClient.js          # Transport JSON, Basic Auth, timeout, dan error upstream reusable
-|-- cuDashboard.js               # Validasi dan normalisasi ringkasan CU
-`-- report/
-    `-- report_cu.js             # Validasi dan mapping tuple detail report CU
-src/
-|-- services/
-|   |-- cuDashboardService.js    # Boundary kontrak ringkasan dashboard CU
-|   `-- cuReportService.js       # Boundary kontrak detail perangkat report CU
-|-- views/dashboard/
-|   |-- dashboard_view.vue      # Halaman dan grid enam card dashboard
-|   |-- dashboard_card.vue      # Shell box/title/daftar perbandingan reusable
-|   |-- dashboard_chart.vue     # Renderer canvas Chart.js reusable
-|   |-- dashboard_cu.vue        # Data, konfigurasi, dan routing card CU
-|   `-- dashboard_slot2..6.vue  # Placeholder doughnut kosong tanpa detail status
-|-- views/report/
-|   |-- report_cu.vue           # Halaman, API, query, kolom, dan format CU
-|   |-- report_layout.vue       # Shell judul/back-link/state reusable
-|   |-- report_table.vue        # Renderer PrimeVue DataTable reusable
-|   `-- report_slot2..6.vue     # Report kosong pasangan setiap doughnut placeholder
-|-- App.vue                     # Shell, header, dan style global
-`-- main.js                     # Inisialisasi Vue, PrimeVue, dan route
+|-- server.js                         # HTTP server dan eksekusi route registry
+|-- shared/
+|   `-- jsonSourceClient.js           # Transport, auth, timeout, dan error reusable
+`-- features/
+    |-- routes.js                      # Registry lintas-feature + guard duplicate path
+    `-- cu/
+        |-- routes.js                 # Endpoint publik dan loader milik CU
+        |-- dashboard/
+        |   `-- cuDashboard.js        # Mapping/agregasi sumber dashboard CU
+        `-- report/
+            `-- cuReport.js           # Mapping tuple sumber report CU
+frontend/
+|-- index.html
+`-- src/
+    |-- app/
+    |   |-- App.vue                   # Shell, header, dan style global
+    |   `-- main.js                   # Bootstrap, PrimeVue, dan route UI
+    |-- pages/
+    |   `-- dashboard_view.vue        # Composition root grid lintas-feature
+    |-- shared/
+    |   |-- dashboard/
+    |   |   |-- dashboard_card.vue    # Shell card reusable
+    |   |   `-- dashboard_chart.vue   # Renderer Chart.js reusable
+    |   `-- report/
+    |       |-- report_layout.vue     # Shell halaman report reusable
+    |       `-- report_table.vue      # Renderer PrimeVue DataTable reusable
+    `-- features/
+        |-- cu/
+        |   |-- dashboard/
+        |   |   |-- dashboard_cu.vue
+        |   |   `-- cuDashboardService.js
+        |   `-- report/
+        |       |-- report_cu.vue
+        |       `-- cuReportService.js
+        `-- placeholders/             # Slot sementara, bukan template bersama
+            |-- dashboard/dashboard_slot2..6.vue
+            `-- report/report_slot2..6.vue
 ```
 
-Repository memakai struktur monorepo ringkas tanpa memindahkan frontend ke package terpisah. Ini cocok selama frontend dan backend dimiliki tim serta siklus rilis yang sama. Pisahkan repository hanya jika keduanya nanti memiliki tim, versioning, akses, atau deployment lifecycle yang benar-benar berbeda.
+Aturan ownership-nya sederhana: sesuatu masuk `shared/` hanya bila dipakai lintas-feature dan tidak mengetahui endpoint, route feature, label, schema, atau aturan bisnis tertentu. Seluruh hal khusus CU berada di `features/cu/`, termasuk service frontend dan adapter backend. `pages/` hanya menyusun beberapa feature, sedangkan `app/` hanya menangani bootstrap dan shell aplikasi. Folder `placeholders/` menampung slot sementara agar kode kosong tersebut tidak dianggap template reusable.
 
-Alur dashboard CU dapat dibaca linear: `dashboard_cu.vue` -> `cuDashboardService.js` -> `/api/dashboard/cu` -> `backend/cuDashboard.js` -> `backend/jsonSourceClient.js` -> sumber internal. Report detail tetap terpisah: `report_cu.vue` -> `cuReportService.js` -> `/api/report/cu` -> `backend/report/report_cu.js` -> `backend/jsonSourceClient.js` -> sumber internal. Service tidak menyimpan label, warna, kolom, atau keputusan UI; detail tersebut berada di file domain yang menggunakannya.
+Repository tetap satu monorepo dengan package/tooling di root, source browser di `frontend/`, dan API di `backend/`. Ini cocok selama frontend dan backend dimiliki tim serta siklus rilis yang sama. Pisahkan repository hanya jika keduanya nanti memiliki tim, versioning, akses, atau deployment lifecycle yang benar-benar berbeda.
+
+Alur dashboard CU dapat dibaca linear: `frontend/src/features/cu/dashboard/dashboard_cu.vue` -> `cuDashboardService.js` -> `/api/dashboard/cu` -> `backend/features/cu/dashboard/cuDashboard.js` -> `backend/shared/jsonSourceClient.js` -> sumber internal. Report detail mengikuti folder pasangannya di `features/cu/report/`. Service tidak menyimpan label, warna, kolom, atau keputusan UI; detail tersebut berada di file feature yang menggunakannya.
 
 ## Ubah apa di mana
 
-- Ubah mapping tuple dan aturan validasi ringkasan CU di `backend/cuDashboard.js`.
-- Ubah kontrak canonical frontend ringkasan CU di `src/services/cuDashboardService.js`.
-- Ubah mapping tuple dan aturan validasi detail report CU di `backend/report/report_cu.js`.
-- Ubah fetch atau validasi kontrak detail report CU di `src/services/cuReportService.js`.
-- Ubah transport JSON, Basic Auth, timeout, atau pemetaan error upstream bersama di `backend/jsonSourceClient.js`.
-- Ubah susunan card/grid atau daftar domain aktif di `src/views/dashboard/dashboard_view.vue`.
-- Ubah title, label status, warna, agregasi, atau routing khusus card CU di `src/views/dashboard/dashboard_cu.vue`.
-- Ubah border, spacing, title, atau slot footer seluruh box di `src/views/dashboard/dashboard_card.vue`.
-- Ubah canvas, tipe, empty state, atau lifecycle Chart.js di `src/views/dashboard/dashboard_chart.vue`.
-- Ubah endpoint, query URL, label/filter status, kolom, atau formatter report CU di `src/views/report/report_cu.vue`.
-- Ubah back-link, susunan heading, atau state label seluruh report di `src/views/report/report_layout.vue`.
-- Ubah layout, filter, pagination, export CSV, atau style semua tabel di `src/views/report/report_table.vue`.
-- Ubah header, navigasi, atau style global di `src/App.vue`.
-- Ubah route atau konfigurasi PrimeVue di `src/main.js`.
+- Ubah mapping tuple dan aturan validasi ringkasan CU di `backend/features/cu/dashboard/cuDashboard.js`.
+- Ubah kontrak canonical frontend ringkasan CU di `frontend/src/features/cu/dashboard/cuDashboardService.js`.
+- Ubah mapping tuple dan aturan validasi detail report CU di `backend/features/cu/report/cuReport.js`.
+- Ubah fetch atau validasi kontrak detail report CU di `frontend/src/features/cu/report/cuReportService.js`.
+- Ubah endpoint publik atau pesan error CU di `backend/features/cu/routes.js`.
+- Daftarkan kumpulan route feature baru di `backend/features/routes.js`; registry menolak path duplikat saat startup.
+- Ubah transport JSON, Basic Auth, timeout, atau pemetaan error upstream bersama di `backend/shared/jsonSourceClient.js`.
+- Ubah susunan card/grid atau daftar domain aktif di `frontend/src/pages/dashboard_view.vue`.
+- Ubah title, label status, warna, agregasi, atau routing khusus card CU di `frontend/src/features/cu/dashboard/dashboard_cu.vue`.
+- Ubah border, spacing, title, atau slot footer seluruh box di `frontend/src/shared/dashboard/dashboard_card.vue`.
+- Ubah canvas, tipe, empty state, atau lifecycle Chart.js di `frontend/src/shared/dashboard/dashboard_chart.vue`.
+- Ubah endpoint, query URL, label/filter status, kolom, atau formatter report CU di `frontend/src/features/cu/report/report_cu.vue`.
+- Ubah back-link, susunan heading, atau state label seluruh report di `frontend/src/shared/report/report_layout.vue`.
+- Ubah layout, filter, pagination, export CSV, atau style semua tabel di `frontend/src/shared/report/report_table.vue`.
+- Ubah header, navigasi, atau style global di `frontend/src/app/App.vue`.
+- Ubah route atau konfigurasi PrimeVue di `frontend/src/app/main.js`.
 
 ## Integrasi data
 
@@ -116,7 +135,7 @@ GET /api/health
 
 Saat development dan `npm run preview`, Vite memasang handler dari `backend/server.js` secara langsung. Untuk deployment, jalankan API dengan `npm run start:backend`, layani folder `dist` menggunakan web server perusahaan, lalu arahkan path `/api` ke backend melalui reverse proxy. Dengan pola same-origin ini frontend tidak membutuhkan CORS.
 
-Frontend selalu memanggil route same-origin dan tidak mengetahui URL sumber. URL dashboard memakai environment server `PATCHING_CU_SOURCE_URL`, sedangkan URL report memakai `PATCHING_CU_REPORT_SOURCE_URL`. Keduanya memakai credential bersama `PATCHING_CU_SOURCE_USERNAME` dan `PATCHING_CU_SOURCE_PASSWORD` melalui `backend/jsonSourceClient.js`. Semua variabel `VITE_*` dapat terlihat di browser, sehingga URL sumber dan credential tidak boleh dipindahkan ke variabel Vite, komponen Vue, atau UI. Credential wajib berpasangan dan Basic Auth hanya diizinkan melalui HTTPS. Jangan menaruh credential di URL atau commit `.env`; gunakan environment/secret store platform untuk deployment perusahaan. `.env.example` hanya mendokumentasikan nama variabel tanpa nilai rahasia.
+Frontend selalu memanggil route same-origin dan tidak mengetahui URL sumber. URL dashboard memakai environment server `PATCHING_CU_SOURCE_URL`, sedangkan URL report memakai `PATCHING_CU_REPORT_SOURCE_URL`. Keduanya memakai credential bersama `PATCHING_CU_SOURCE_USERNAME` dan `PATCHING_CU_SOURCE_PASSWORD` melalui `backend/shared/jsonSourceClient.js`. Semua variabel `VITE_*` dapat terlihat di browser, sehingga URL sumber dan credential tidak boleh dipindahkan ke variabel Vite, komponen Vue, atau UI. Credential wajib berpasangan dan Basic Auth hanya diizinkan melalui HTTPS. Jangan menaruh credential di URL atau commit `.env`; gunakan environment/secret store platform untuk deployment perusahaan. `.env.example` hanya mendokumentasikan nama variabel tanpa nilai rahasia.
 
 Adapter CU menerima satu atau lebih tuple `result[n]` dengan urutan `[Remediated Computer Count, Applicable Computer Count, Fixlet Name]`. Backend menjumlahkan seluruh row lalu mengubahnya menjadi kontrak bernama jelas:
 
@@ -141,7 +160,7 @@ Adapter report CU menerima setiap `result[n]` dalam urutan vendor yang tepat:
 [hostname, ipAddresses, osVersion, processor, lastReportTime]
 ```
 
-`backend/report/report_cu.js` memvalidasi setiap tuple lalu memetakannya ke record canonical berikut:
+`backend/features/cu/report/cuReport.js` memvalidasi setiap tuple lalu memetakannya ke record canonical berikut:
 
 | Nilai sumber | Field canonical | Aturan |
 |---|---|---|
@@ -153,7 +172,7 @@ Adapter report CU menerima setiap `result[n]` dalam urutan vendor yang tepat:
 | - | `lastPatch` | Selalu `null` karena endpoint report ini belum menyediakan bulan patch terakhir. |
 | `lastReportTime` | `lastReportTime` | Waktu sumber wajib memiliki zona waktu lalu dinormalisasi menjadi ISO 8601 UTC. |
 
-`src/services/cuReportService.js` menjadi boundary validasi frontend untuk array canonical tersebut. `result: []` tetap valid dan ditampilkan sebagai empty state, bukan data palsu. Search hostname/IP, dropdown status, pagination, dan export CSV tetap memakai konfigurasi report yang sama. Karena `patchStatus` saat ini `null`, pilihan **Semua status** menampilkan data, sedangkan filter **Sudah di-patch** atau **Belum di-patch** baru menghasilkan data setelah sumber status tersedia. `Last Patch` juga tampil sebagai nilai kosong sampai field tersebut memiliki sumber resmi.
+`frontend/src/features/cu/report/cuReportService.js` menjadi boundary validasi frontend untuk array canonical tersebut. `result: []` tetap valid dan ditampilkan sebagai empty state, bukan data palsu. Search hostname/IP, dropdown status, pagination, dan export CSV tetap memakai konfigurasi report yang sama. Karena `patchStatus` saat ini `null`, pilihan **Semua status** menampilkan data, sedangkan filter **Sudah di-patch** atau **Belum di-patch** baru menghasilkan data setelah sumber status tersedia. `Last Patch` juga tampil sebagai nilai kosong sampai field tersebut memiliki sumber resmi.
 
 ## Menambah chart atau report baru
 
@@ -163,7 +182,7 @@ Template `dashboard_chart.vue` menerima item berbentuk `{ key, label, value, col
 
 Report mengikuti pasangan satu-ke-satu. `report_cu.vue` berpasangan dengan `dashboard_cu.vue`. Setiap report domain baru menyusun `ReportLayout` untuk shell halaman dan `ReportTable` untuk tabel. Title, deskripsi, endpoint, kolom, dan formatter tetap menjadi milik domain.
 
-Saat domain baru siap, rename salah satu slot menjadi nama yang jelas, misalnya `dashboard_windows.vue`, lalu buat pasangannya `report_windows.vue`, ubah import di `dashboard_view.vue`, dan tambahkan route report di `main.js`. Template umum tidak perlu disalin.
+Saat domain baru siap, buat folder sejajar dengan CU: `frontend/src/features/<domain>/{dashboard,report}/` dan `backend/features/<domain>/{dashboard,report}/`. Endpoint, service, mapping sumber, tipe chart, label, warna, kolom, dan formatter tinggal di feature tersebut. Komponen dari `frontend/src/shared/` cukup di-import, bukan disalin. Terakhir, daftarkan card pada `pages/dashboard_view.vue`, route UI pada `app/main.js`, dan kumpulan route backend pada `backend/features/routes.js`. Hapus pasangan slot placeholder yang digantikan.
 
 ## Route
 

@@ -2,9 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { fetchCuReportDevices } from '../../services/cuReportService'
-import ReportLayout from './report_layout.vue'
-import ReportTable from './report_table.vue'
+import { fetchCuReportDevices } from './cuReportService'
+import ReportLayout from '../../../shared/report/report_layout.vue'
+import ReportTable from '../../../shared/report/report_table.vue'
 
 // Domain composer CU adalah satu tempat untuk API, schema, filter, format, dan sinkronisasi route.
 // Ia merangkai ReportLayout + ReportTable tanpa memindahkan aturan CU ke komponen reusable.
